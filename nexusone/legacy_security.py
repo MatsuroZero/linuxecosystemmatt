@@ -10,7 +10,6 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 from urllib.parse import urlsplit
-from typing import Any
 
 from flask import Flask, abort, request, session
 
@@ -209,13 +208,6 @@ def install_legacy_security(
             'init={...init,headers};'
             '}return nativeFetch(input,init);'
             '};'
-            'document.addEventListener("submit",function(event){'
-            'const form=event.target;'
-            'if(!form||["GET","DIALOG"].includes(String(form.method||"GET").toUpperCase()))return;'
-            'let field=form.querySelector("input[name=nexusone_csrf]");'
-            'if(!field){field=document.createElement("input");field.type="hidden";'
-            'field.name="nexusone_csrf";form.appendChild(field)}field.value=token;'
-            '},true);'
             '})();</script>'
         )
         html = response.get_data(as_text=True)
