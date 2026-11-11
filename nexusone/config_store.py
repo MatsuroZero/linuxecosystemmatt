@@ -1,0 +1,240 @@
+"""Private, atomic storage for integration configuration.
+
+Secrets are write-only at the API boundary. This file must live outside the
+repository and is created with owner-only permissions.
+"""
+from __future__ import annotations
+
+import json
+import os
+import tempfile
+from pathlib import Path
+from threading import RLock
+from typing import Any
+from urllib.parse import urlsplit
+
+_SECRET_FIELDS = {
+    "telegram": {
+        "bot_token", "links_pin", "gemini_api_key",
+        "system_dashboard_password", "odysseus_password",
+        "jellyfin_password", "uptime_kuma_password",
+    },
+    "discord": {"bot_token", "client_secret", "bridge_secret", "links_pin"},
+}
+_LIST_FIELDS = {
+    "telegram": {"authorized_user_ids", "chat_ids"},
+    "discord": {"authorized_user_ids", "guild_ids", "channel_ids"},
+}
+_TEXT_FIELDS = {
+    "telegram": {
+        "enabled", "system_dashboard_username", "odysseus_username",
+        "jellyfin_username", "uptime_kuma_username", "gemini_base_url",
+        "gemini_timeout", "ollama_base_url", "ollama_timeout",
+        "ollama_memory_model", "ollama_memory_path", "system_dashboard_url",
+        "odysseus_url", "jellyfin_url", "uptime_kuma_url", "nexus_registry_path",
+        "system_dashboard_health_url", "jellyfin_health_url", "ollama_health_url",
+        "uptime_kuma_health_url",
+    },
+    "discord": {
+        "enabled", "application_id", "client_id", "activity_origin",
+        "redirect_uri", "allowed_origins", "port",
+        "system_dashboard_url", "odysseus_url", "jellyfin_url", "uptime_kuma_url",
+        "nexus_registry_path", "system_dashboard_health_url", "jellyfin_health_url",
+        "ollama_health_url", "uptime_kuma_health_url",
+    },
+}
+
+
+class ConfigurationError(ValueError):
+    pass
+
+
+class ConfigStore:
+    """JSON settings store with atomic writes and restrictive permissions."""
+
+    def __init__(self, path: str | Path):
+        self.path = Path(path).expanduser()
+        self._lock = RLock()
+
+    @staticmethod
+    def _validate_url(
+        value: str, field: str, origin_only: bool,
+        allow_local_http: bool = False, allow_http: bool = False,
+    ) -> None:
+        try:
+            parsed = urlsplit(value)
+            hostname = parsed.hostname
+            port = parsed.port
+        except ValueError as exc:
+            raise ConfigurationError(f"{field} is not a valid URL") from exc
+        local_http = parsed.scheme == "http" and hostname in {"localhost", "127.0.0.1", "::1"}
+        if (
+            (parsed.scheme != "https" and not (allow_http or (allow_local_http and local_http)))
+            or not hostname or (port is not None and not 1 <= port <= 65535)
+            or parsed.username or parsed.password or parsed.query or parsed.fragment
+            or (origin_only and parsed.path not in {"", "/"})
+        ):
+            requirement = "origin" if origin_only else "URL"
+            raise ConfigurationError(f"{field} must be a valid HTTP(S) {requirement}")
+
+    def _read(self) -> dict[str, Any]:
+        if not self.path.exists():
+            return {"telegram": {}, "discord": {}}
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ConfigurationError("Configuration file cannot be read") from exc
+        if not isinstance(data, dict):
+            raise ConfigurationError("Configuration root must be an object")
+        return {name: data.get(name, {}) for name in ("telegram", "discord")}
+
+    @staticmethod
+    def _validate_ids(values: Any, field: str, allow_negative: bool = False) -> list[str]:
+        if not isinstance(values, list):
+            raise ConfigurationError(f"{field} must be a list")
+        normalized = []
+        for value in values:
+            item = str(value).strip()
+            numeric = item[1:] if allow_negative and item.startswith("-") else item
+            if not numeric.isdigit() or len(item) > 24:
+                raise ConfigurationError(f"{field} contains an invalid numeric ID")
+            if item not in normalized:
+                normalized.append(item)
+        return normalized
+
+    def runtime_integration(self, integration: str) -> dict[str, Any]:
+        """Return private integration settings for trusted server-side adapters only."""
+        if integration not in {"telegram", "discord"}:
+            raise ConfigurationError("Unknown integration")
+        with self._lock:
+            data = self._read()
+        values = data.get(integration, {})
+        return dict(values) if isinstance(values, dict) else {}
+
+    def public_view(self) -> dict[str, Any]:
+        with self._lock:
+            data = self._read()
+        result: dict[str, Any] = {}
+        for integration, values in data.items():
+            values = values if isinstance(values, dict) else {}
+            visible = {key + "_configured": bool(values.get(key)) for key in _SECRET_FIELDS[integration]}
+            for key, value in values.items():
+                if key in _SECRET_FIELDS[integration]:
+                    visible[key + "_configured"] = bool(value)
+                else:
+                    visible[key] = value
+            result[integration] = visible
+        return result
+
+    def update(self, payload: Any) -> dict[str, Any]:
+        if not isinstance(payload, dict):
+            raise ConfigurationError("Configuration payload must be an object")
+        with self._lock:
+            data = self._read()
+            for integration in ("telegram", "discord"):
+                patch = payload.get(integration, {})
+                if not isinstance(patch, dict):
+                    raise ConfigurationError(f"{integration} settings must be an object")
+                allowed = _SECRET_FIELDS[integration] | _LIST_FIELDS[integration] | _TEXT_FIELDS[integration]
+                unknown = set(patch) - allowed
+                if unknown:
+                    raise ConfigurationError(f"Unsupported {integration} setting: {min(unknown)}")
+                current = data.setdefault(integration, {})
+                for key, value in patch.items():
+                    if key in _SECRET_FIELDS[integration]:
+                        if value is None:
+                            current.pop(key, None)
+                        elif isinstance(value, str):
+                            if len(value) > 4096 or any(char in value for char in "\r\n\x00"):
+                                raise ConfigurationError(f"{key} contains invalid characters or is too long")
+                            if value.strip():
+                                normalized = value.strip()
+                                if integration == "telegram" and key == "links_pin" and (
+                                    not normalized.isdigit() or not 4 <= len(normalized) <= 12
+                                ):
+                                    raise ConfigurationError("Telegram links_pin must contain 4 to 12 digits")
+                                if integration == "discord" and key == "links_pin" and len(normalized) < 6:
+                                    raise ConfigurationError("Discord links_pin must contain at least 6 characters")
+                                current[key] = normalized
+                        else:
+                            raise ConfigurationError(f"{key} must be text")
+                    elif key in _LIST_FIELDS[integration]:
+                        current[key] = self._validate_ids(value, key, allow_negative=(key == "chat_ids"))
+                    elif key == "enabled":
+                        if not isinstance(value, bool):
+                            raise ConfigurationError("enabled must be boolean")
+                        current[key] = value
+                    elif isinstance(value, str) and len(value) <= 500:
+                        if any(char in value for char in "\r\n\x00"):
+                            raise ConfigurationError(f"{key} contains invalid characters")
+                        normalized = value.strip()
+                        if key in {"application_id", "client_id"} and normalized and (
+                            not normalized.isdigit() or len(normalized) > 24
+                        ):
+                            raise ConfigurationError(f"{key} must be a numeric Discord ID")
+                        if key in {"gemini_timeout", "ollama_timeout"} and normalized:
+                            try:
+                                timeout = float(normalized)
+                            except ValueError as exc:
+                                raise ConfigurationError(f"{key} must be a positive number") from exc
+                            if not 1 <= timeout <= 3600:
+                                raise ConfigurationError(f"{key} must be between 1 and 3600 seconds")
+                        if key in {"gemini_base_url", "ollama_base_url"} and normalized:
+                            try:
+                                parsed_base = urlsplit(normalized)
+                                hostname_base = parsed_base.hostname
+                                port_base = parsed_base.port
+                            except ValueError as exc:
+                                raise ConfigurationError(f"{key} is not a valid URL") from exc
+                            if (
+                                parsed_base.scheme not in {"http", "https"} or not hostname_base
+                                or (port_base is not None and not 1 <= port_base <= 65535)
+                                or parsed_base.username or parsed_base.password
+                                or parsed_base.query or parsed_base.fragment
+                            ):
+                                raise ConfigurationError(f"{key} must be a valid HTTP(S) base URL")
+                        if key == "activity_origin" and normalized:
+                            self._validate_url(normalized, key, origin_only=True, allow_local_http=False)
+                        if key == "redirect_uri" and normalized:
+                            self._validate_url(normalized, key, origin_only=False, allow_local_http=True)
+                        if key in {
+                            "system_dashboard_url", "odysseus_url", "jellyfin_url",
+                            "uptime_kuma_url", "system_dashboard_health_url",
+                            "jellyfin_health_url", "ollama_health_url", "uptime_kuma_health_url",
+                        } and normalized:
+                            self._validate_url(normalized, key, origin_only=False, allow_http=True)
+                        if key == "allowed_origins" and normalized:
+                            origins = [item.strip() for item in normalized.split(",") if item.strip()]
+                            if not origins:
+                                raise ConfigurationError("allowed_origins must contain at least one origin")
+                            for origin in origins:
+                                self._validate_url(origin, key, origin_only=True, allow_local_http=True)
+                            normalized = ",".join(origins)
+                        if key == "port" and normalized and (
+                            not normalized.isdigit() or not 1024 <= int(normalized) <= 65535
+                        ):
+                            raise ConfigurationError("port must be between 1024 and 65535")
+                        current[key] = normalized
+                    else:
+                        raise ConfigurationError(f"{key} must be text up to 500 characters")
+            self._write(data)
+        return self.public_view()
+
+    def _write(self, data: dict[str, Any]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(self.path.parent, 0o700)
+        fd, temp_name = tempfile.mkstemp(prefix=".nexusone-config-", dir=self.path.parent)
+        try:
+            os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                json.dump(data, stream, indent=2, sort_keys=True)
+                stream.write("\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temp_name, self.path)
+            os.chmod(self.path, 0o600)
+        finally:
+            try:
+                os.unlink(temp_name)
+            except FileNotFoundError:
+                pass

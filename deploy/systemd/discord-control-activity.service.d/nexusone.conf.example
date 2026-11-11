@@ -1,0 +1,6 @@
+# Install as:
+# ~/.config/systemd/user/discord-control-activity.service.d/nexusone.conf
+[Service]
+# Clear the legacy EnvironmentFile setting, then load the private NexusOne export.
+EnvironmentFile=
+EnvironmentFile=-%h/.config/nexusone/discord.env

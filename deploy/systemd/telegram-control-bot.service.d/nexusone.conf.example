@@ -1,0 +1,4 @@
+# Install as:
+# ~/.config/systemd/user/telegram-control-bot.service.d/nexusone.conf
+[Service]
+EnvironmentFile=-%h/.config/nexusone/telegram.env

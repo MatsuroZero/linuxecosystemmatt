@@ -9,11 +9,14 @@ It is being assembled from the existing System Dashboard, Nexus Control CLI, Tel
 ## Design principles
 
 - Localhost-only by default; LAN access is an explicit deployment choice.
+- Default dashboard address is `http://127.0.0.1:7171`; the port is configurable.
 - One authorization policy shared by every interface.
-- Administrator-only access for terminal, power, service, Docker, credential, and saved-command controls.
+- Administrator-only access for terminal, power, service, Docker, credential, configuration, and saved-command controls.
 - CSRF protection, bounded requests, rate limits, and auditable state changes.
 - Small modules with independent tests.
 - Existing Explorer access remains available, constrained to the configured user workspace.
+- Explorer supports large streaming and resumable uploads without a small arbitrary file-size cap; available disk space and configurable resource safeguards remain authoritative.
+- A central administrator-only Configuration tab manages Telegram/Discord credentials, IDs, allowlists, and integration status without exposing stored secrets to the browser.
 - Preserve historical snapshots in an immutable archive. Never delete source backups as part of migration.
 - No secrets, environment files, dependency folders, caches, or generated bundles in source control.
 
@@ -43,14 +46,28 @@ nexusone/
 
 ## Current audit notes
 
-The source audit found an existing Flask dashboard, a useful Nexus CLI foundation, a Telegram bot with a user allowlist, and a Discord Activity with a single-user allowlist and 31 passing Node tests in an isolated run.
+The source audit found an existing Flask dashboard, a useful Nexus CLI foundation, a Telegram bot, and a Discord Activity. The Telegram adapter now supports comma- or whitespace-separated `TELEGRAM_ALLOWED_USER_IDS` with a legacy single-ID fallback; its open PR #1 passes the GitHub Actions checks but is not deployed. The Discord draft PR #7 supports comma-separated multi-user IDs and passes 34 Node tests, but it is not merged or deployed.
 
 The uploaded Discord archive contains a populated `.env` and bundled `node_modules`. Neither is suitable for publication. Treat credentials in that archive as exposed and rotate them before deployment. The original archive is retained as audit input; it is not copied into this repository.
 
-The detailed audit and architecture documents are being developed on the `nexusone-foundation` branch.
+Additional owner-confirmed requirements are recorded in [docs/USER_REQUIREMENTS_ADDENDUM.md](docs/USER_REQUIREMENTS_ADDENDUM.md). The first Explorer upload and integration-settings implementation notes are in [docs/EXPLORER_AND_CONFIG.md](docs/EXPLORER_AND_CONFIG.md). The current foundation exposes an admin-only `/settings` page, a `/services` status/control page, an administrator-only `/activity` audit page, and an authenticated `/explorer` file manager with resumable chunk uploads. Service discovery uses a fixed systemd allowlist. System services are status-only; administrators can control only explicitly approved user-scope units until a polkit helper is introduced. Upload sessions persist across server restarts and are scoped to the signed-in dashboard username. The same-origin gateway now embeds File Transfer and administrator-only Integrations tabs in the legacy dashboard, restores its existing section navigation, and preserves the original login. It also applies the loopback/HTTPS boundary to both legacy and NexusOne routes; see [docs/LEGACY_DASHBOARD_INTEGRATION.md](docs/LEGACY_DASHBOARD_INTEGRATION.md) before attempting the staged integration.
 
 ## Development
 
-The first implementation slice will establish the shared security primitives and tests. Existing services remain the source of truth until each migration step has passed its tests and a manual smoke test on the target workstation.
+The current foundation includes shared security primitives, live legacy-account role refresh, Explorer file operations, resumable uploads, integration settings, allowlisted systemd/Docker controls, audit logging, a same-origin legacy-dashboard gateway, and a reversible dashboard source installer. GitHub Actions currently verifies 66 Python tests, compiles the installer CLI, and passes Ruff lint. Existing services remain the source of truth until each migration step has passed its tests and a manual smoke test on the target workstation.
+
+## Local development
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+python -m pytest
+python -m nexusone.app
+```
+
+The web app binds to `127.0.0.1:7171` by default. Set `NEXUSONE_PORT` to override the port. Production requires `NEXUSONE_SECRET_KEY`. Do not enable LAN binding until authentication, firewall rules, and secure transport have been configured.
+
+A phone cannot reach a service bound only to `127.0.0.1` on the PC. To upload from a phone, explicitly enable LAN mode on the gateway, configure HTTPS, and use the PC's LAN address; both the legacy dashboard and NexusOne routes reject plain-HTTP LAN requests. Keep the firewall restricted to the trusted local network.
 
 Never run the web process as root. Use narrowly scoped system permissions only where a specific adapter requires them.
