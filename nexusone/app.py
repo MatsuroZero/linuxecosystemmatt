@@ -369,6 +369,12 @@ def _role_required(capability: Capability):
 def create_app(config=None) -> Flask:
     app = Flask(__name__)
     supplied = dict(config or {})
+    if (
+        os.environ.get("NEXUSONE_ENV", "development").strip().lower() == "production"
+        and not os.environ.get("NEXUSONE_SECRET_KEY", "").strip()
+    ):
+        raise RuntimeError("NEXUSONE_SECRET_KEY is required in production")
+
     secret = supplied.pop("SECRET_KEY", None) or os.environ.get("NEXUSONE_SECRET_KEY")
     if not secret:
         # Reuse the legacy dashboard key so its signed Flask login session can
@@ -396,7 +402,14 @@ def create_app(config=None) -> Flask:
         TELEGRAM_ENV_FILE=os.environ.get("NEXUSONE_TELEGRAM_ENV_FILE", str(config_dir / "telegram.env")),
         DISCORD_ENV_FILE=os.environ.get("NEXUSONE_DISCORD_ENV_FILE", str(config_dir / "discord.env")),
         AUDIT_FILE=os.environ.get("NEXUSONE_AUDIT_FILE", "~/.local/state/nexusone/audit.sqlite3"),
-        DASHBOARD_AUTH_DB=os.environ.get("NEXUSONE_DASHBOARD_AUTH_DB", "~/.local/share/system-dashboard/dashboard-users.sqlite3"),
+        DASHBOARD_AUTH_DB=(
+            supplied.get("DASHBOARD_AUTH_DB", "")
+            if supplied.get("TESTING")
+            else os.environ.get(
+                "NEXUSONE_DASHBOARD_AUTH_DB",
+                "~/.local/share/system-dashboard/dashboard-users.sqlite3",
+            )
+        ),
         SESSION_COOKIE_NAME="session", SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=(os.environ.get("NEXUSONE_COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes"}
                                if os.environ.get("NEXUSONE_COOKIE_SECURE") is not None
