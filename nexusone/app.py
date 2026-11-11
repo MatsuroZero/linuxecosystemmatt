@@ -38,7 +38,7 @@ small{color:#9ca3af}#status{white-space:pre-wrap}
 <small id="tg_token_state"></small><label><input type="checkbox" id="tg_clear_token"> Clear saved token</label>
 <label>Authorized Telegram user IDs, one per line</label><textarea id="tg_users" rows="3"></textarea>
 <label>Chat/group IDs, one per line</label><textarea id="tg_chats" rows="2"></textarea>
-<label>Credential reveal PIN <input type="password" id="tg_pin" autocomplete="new-password" placeholder="Leave blank to keep current"></label><label><input type="checkbox" id="tg_clear_pin"> Clear saved PIN</label>
+<label>Credential reveal PIN <input type="password" id="tg_pin" autocomplete="new-password" placeholder="7171, if retaining the legacy reveal flow"></label><label><input type="checkbox" id="tg_clear_pin"> Clear saved PIN</label>
 </section>
 <section><h2>Connected services & AI</h2>
 <p><small>These are the credentials and endpoints used by the existing Telegram bot. Secret values remain write-only.</small></p>
