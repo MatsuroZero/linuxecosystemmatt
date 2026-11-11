@@ -6,6 +6,13 @@ from nexusone.app import create_app
 from nexusone.legacy_gateway import NexusOneGateway
 
 
+class LocalClient(Client):
+    def open(self, *args, **kwargs):
+        overrides = kwargs.setdefault("environ_overrides", {})
+        overrides.setdefault("REMOTE_ADDR", "127.0.0.1")
+        return super().open(*args, **kwargs)
+
+
 def make_gateway(tmp_path, *, allow_lan=False):
     legacy = Flask("legacy-dashboard")
     legacy.secret_key = "shared-test-secret"
@@ -37,7 +44,7 @@ def make_gateway(tmp_path, *, allow_lan=False):
     legacy.wsgi_app = NexusOneGateway(
         legacy.wsgi_app, nexusone.wsgi_app, allow_lan=allow_lan
     )
-    return Client(legacy, Response)
+    return LocalClient(legacy, Response)
 
 
 def test_gateway_keeps_legacy_routes_and_mounts_nexusone_same_origin(tmp_path):
@@ -75,13 +82,11 @@ def test_gateway_csrf_and_shared_session_work_through_api_mount(tmp_path):
 
 def test_gateway_blocks_remote_access_unless_https_lan_mode_is_explicit(tmp_path):
     client = make_gateway(tmp_path)
-    client.environ_base["REMOTE_ADDR"] = "192.168.1.50"
-    denied = client.get("/nexusone/")
+    denied = client.get("/nexusone/", environ_overrides={"REMOTE_ADDR": "192.168.1.50"})
     assert denied.status_code == 403
 
     secure_client = make_gateway(tmp_path, allow_lan=True)
-    secure_client.environ_base["REMOTE_ADDR"] = "192.168.1.50"
-    http_denied = secure_client.get("/nexusone/")
+    http_denied = secure_client.get("/nexusone/", environ_overrides={"REMOTE_ADDR": "192.168.1.50"})
     assert http_denied.status_code == 403
-    https_allowed = secure_client.get("/nexusone/", environ_overrides={"wsgi.url_scheme": "https"})
+    https_allowed = secure_client.get("/nexusone/", environ_overrides={"REMOTE_ADDR": "192.168.1.50", "wsgi.url_scheme": "https"})
     assert https_allowed.status_code == 401
