@@ -46,7 +46,7 @@ nexusone/
 
 ## Current audit notes
 
-The source audit found an existing Flask dashboard, a useful Nexus CLI foundation, a Telegram bot with a single-user allowlist in the public reference copy, and a Discord Activity. The open Discord draft PR #7 now supports comma-separated multi-user IDs and passes 34 Node tests, but it is not merged or deployed. The local Telegram bot branch still needs a multi-user compatibility check.
+The source audit found an existing Flask dashboard, a useful Nexus CLI foundation, a Telegram bot, and a Discord Activity. The Telegram adapter now supports comma- or whitespace-separated `TELEGRAM_ALLOWED_USER_IDS` with a legacy single-ID fallback; its open PR #1 passes the GitHub Actions checks but is not deployed. The Discord draft PR #7 supports comma-separated multi-user IDs and passes 34 Node tests, but it is not merged or deployed.
 
 The uploaded Discord archive contains a populated `.env` and bundled `node_modules`. Neither is suitable for publication. Treat credentials in that archive as exposed and rotate them before deployment. The original archive is retained as audit input; it is not copied into this repository.
 
