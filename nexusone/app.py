@@ -197,6 +197,11 @@ def create_app(config=None) -> Flask:
         )
         return jsonify(result), 201
 
+    @app.get("/api/explorer/uploads/<upload_id>")
+    def upload_status(upload_id):
+        _role_required(Capability.EXPLORER_READ)()
+        return jsonify(app.extensions["nexusone_uploads"].status(upload_id))
+
     @app.put("/api/explorer/uploads/<upload_id>")
     def upload_chunk(upload_id):
         _role_required(Capability.EXPLORER_WRITE)()
