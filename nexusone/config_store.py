@@ -88,7 +88,7 @@ class ConfigStore:
                 allowed = _SECRET_FIELDS[integration] | _LIST_FIELDS[integration] | _TEXT_FIELDS[integration]
                 unknown = set(patch) - allowed
                 if unknown:
-                    raise ConfigurationError(f"Unsupported {integration} setting: {sorted(unknown)[0]}")
+                    raise ConfigurationError(f"Unsupported {integration} setting: {min(unknown)}")
                 current = data.setdefault(integration, {})
                 for key, value in patch.items():
                     if key in _SECRET_FIELDS[integration]:
