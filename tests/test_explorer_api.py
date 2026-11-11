@@ -85,3 +85,21 @@ def test_explorer_hides_private_upload_staging_directory(tmp_path):
     listing = client.get("/api/files")
     assert all(item["name"] != ".nexusone-upload-tmp" for item in listing.json["entries"])
     assert client.get("/api/files?path=.nexusone-upload-tmp").status_code == 400
+
+
+
+def test_explorer_clipboards_are_isolated_per_user(tmp_path):
+    root = tmp_path / "workspace"
+    root.mkdir()
+    (root / "secret.txt").write_text("user one", encoding="utf-8")
+    app = create_app({
+        "TESTING": True, "SECRET_KEY": "test-secret", "SESSION_COOKIE_SECURE": False,
+        "EXPLORER_ROOT": str(root), "CONFIG_FILE": str(tmp_path / "settings.json"),
+    })
+    first, first_headers = signed_in_client(app, username="user-one")
+    second, _ = signed_in_client(app, username="user-two")
+    response = first.post("/api/files/clipboard", headers=first_headers,
+                          json={"paths": ["secret.txt"], "mode": "copy"})
+    assert response.status_code == 200
+    assert first.get("/api/files").json["clipboard"]["paths"] == ["secret.txt"]
+    assert second.get("/api/files").json["clipboard"] is None
