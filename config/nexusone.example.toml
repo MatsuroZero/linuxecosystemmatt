@@ -1,3 +1,5 @@
+# Reference template only: the bootstrap app currently reads environment variables
+# and Flask app config. A TOML loader will be added during configuration migration.
 # Copy to ~/.config/nexusone/config.toml and chmod 600.
 [server]
 host = "127.0.0.1"
