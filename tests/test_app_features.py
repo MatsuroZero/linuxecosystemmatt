@@ -39,6 +39,8 @@ def test_configuration_is_admin_only_and_secrets_are_write_only(tmp_path):
     assert b"Gemini API key" in settings_page.data
     assert b"Uptime Kuma password" in settings_page.data
     assert b"Authorized Discord user IDs" in settings_page.data
+    assert b"pending Discord adapter update" in settings_page.data
+    assert b"current server does not enforce these IDs yet" in settings_page.data
     assert b"Configuration" in client.get("/").data
 
 
