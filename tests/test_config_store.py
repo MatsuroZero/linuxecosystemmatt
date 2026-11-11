@@ -34,3 +34,12 @@ def test_invalid_user_ids_are_rejected(tmp_path):
     store = ConfigStore(tmp_path / "settings.json")
     with pytest.raises(ConfigurationError):
         store.update({"discord": {"authorized_user_ids": ["123; DROP TABLE"]}})
+
+
+
+def test_telegram_group_chat_ids_may_be_negative(tmp_path):
+    store = ConfigStore(tmp_path / "settings.json")
+    public = store.update({"telegram": {"chat_ids": ["-1001234567890"]}})
+    assert public["telegram"]["chat_ids"] == ["-1001234567890"]
+    with pytest.raises(ConfigurationError):
+        store.update({"telegram": {"authorized_user_ids": ["-12345"]}})
