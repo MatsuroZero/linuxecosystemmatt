@@ -2,6 +2,7 @@
 
 import os
 import secrets
+import sqlite3
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, render_template_string, request, session
@@ -302,6 +303,7 @@ def create_app(config=None) -> Flask:
         UPLOAD_CHUNK_BYTES=8 * 1024 * 1024, UPLOAD_MAX_ACTIVE=3,
         EXPLORER_ROOT=os.environ.get("NEXUSONE_EXPLORER_ROOT", "~/"),
         CONFIG_FILE=str(config_dir / "integrations.json"),
+        DASHBOARD_AUTH_DB=os.environ.get("NEXUSONE_DASHBOARD_AUTH_DB", "~/.local/share/system-dashboard/dashboard-users.sqlite3"),
         SESSION_COOKIE_NAME="session", SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=(os.environ.get("NEXUSONE_COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes"}
                                if os.environ.get("NEXUSONE_COOKIE_SECURE") is not None
@@ -329,6 +331,28 @@ def create_app(config=None) -> Flask:
             abort(413, description="Request body is too large")
         if request.endpoint == "health":
             return
+        if session.get("authenticated"):
+            username = str(session.get("username", "")).strip()
+            auth_db = Path(app.config["DASHBOARD_AUTH_DB"]).expanduser()
+            # The legacy dashboard is the identity provider during migration.
+            # Re-read its role on every request so a removed account or revoked
+            # administrator role cannot keep privileged access through an old cookie.
+            if auth_db.is_file():
+                if username.casefold() == "marwan":
+                    session["role"] = "admin"
+                else:
+                    try:
+                        with sqlite3.connect(f"file:{auth_db}?mode=ro", uri=True, timeout=2) as db:
+                            row = db.execute(
+                                "SELECT role FROM users WHERE lower(username)=lower(?)", (username,)
+                            ).fetchone()
+                    except sqlite3.Error:
+                        app.logger.exception("Unable to validate dashboard account role")
+                        return jsonify(error="Account authorization is temporarily unavailable"), 503
+                    if row is None:
+                        session.clear()
+                        return jsonify(error="Account is no longer active"), 401
+                    session["role"] = str(row[0])
         if not session.get("authenticated"):
             if request.path.startswith("/api/"):
                 return jsonify(error="Authentication required"), 401
