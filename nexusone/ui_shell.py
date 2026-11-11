@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import json
 import os
 from pathlib import Path
 
@@ -233,7 +234,6 @@ def install_ui_shell(app) -> None:
             "username": username,
             "initial": (username[:1] or "U").upper(),
         }
-        import json
         base = request.script_root.rstrip("/")
         bootstrap = (
             f'<meta name="n1-shell-config" content="{html.escape(json.dumps(config), quote=True)}">'
