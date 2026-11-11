@@ -122,11 +122,12 @@ class ConfigStore:
                             try:
                                 parsed = urlsplit(normalized)
                                 hostname = parsed.hostname
-                                parsed.port
+                                port = parsed.port
                             except ValueError as exc:
                                 raise ConfigurationError("activity_origin is not a valid URL") from exc
                             if (
                                 parsed.scheme != "https" or not hostname
+                                or (port is not None and not 1 <= port <= 65535)
                                 or parsed.username or parsed.password
                                 or parsed.path not in {"", "/"} or parsed.query or parsed.fragment
                             ):
