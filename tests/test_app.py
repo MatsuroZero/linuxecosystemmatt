@@ -45,7 +45,9 @@ def test_production_requires_stable_secret(monkeypatch):
     with pytest.raises(RuntimeError):
         create_app()
 
-\n\ndef test_rate_limit_returns_429_after_configured_budget():
+
+
+def test_rate_limit_returns_429_after_configured_budget():
     app = create_app({
         "TESTING": True, "SECRET_KEY": "test-secret",
         "SESSION_COOKIE_SECURE": False, "RATE_LIMIT": 1,
