@@ -115,7 +115,7 @@ class ConfigStore:
                         if value is None:
                             current.pop(key, None)
                         elif isinstance(value, str):
-                            if len(value) > 4096 or any(char in value for char in "\\r\\n\\x00"):
+                            if len(value) > 4096 or any(char in value for char in "\r\n\x00"):
                                 raise ConfigurationError(f"{key} contains invalid characters or is too long")
                             if value.strip():
                                 normalized = value.strip()
@@ -133,7 +133,7 @@ class ConfigStore:
                             raise ConfigurationError("enabled must be boolean")
                         current[key] = value
                     elif isinstance(value, str) and len(value) <= 500:
-                        if any(char in value for char in "\\r\\n\\x00"):
+                        if any(char in value for char in "\r\n\x00"):
                             raise ConfigurationError(f"{key} contains invalid characters")
                         normalized = value.strip()
                         if key in {"application_id", "client_id"} and normalized and (
