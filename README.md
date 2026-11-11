@@ -54,7 +54,7 @@ Additional owner-confirmed requirements are recorded in [docs/USER_REQUIREMENTS_
 
 ## Development
 
-The current foundation includes shared security primitives, live legacy-account role refresh, Explorer file operations, resumable uploads, integration settings, allowlisted systemd/Docker controls, audit logging, and a same-origin legacy-dashboard gateway. GitHub Actions currently verifies 60 Python tests, the injected dashboard JavaScript syntax, and Ruff lint. Existing services remain the source of truth until each migration step has passed its tests and a manual smoke test on the target workstation.
+The current foundation includes shared security primitives, live legacy-account role refresh, Explorer file operations, resumable uploads, integration settings, allowlisted systemd/Docker controls, audit logging, a same-origin legacy-dashboard gateway, and a reversible dashboard source installer. GitHub Actions currently verifies 66 Python tests, compiles the installer CLI, and passes Ruff lint. Existing services remain the source of truth until each migration step has passed its tests and a manual smoke test on the target workstation.
 
 ## Local development
 
