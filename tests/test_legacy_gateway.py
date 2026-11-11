@@ -93,6 +93,8 @@ def test_gateway_blocks_remote_access_unless_https_lan_mode_is_explicit(tmp_path
     secure_client = make_gateway(tmp_path, allow_lan=True)
     http_denied = secure_client.get("/nexusone/", environ_overrides={"REMOTE_ADDR": "192.168.1.50"})
     assert http_denied.status_code == 403
+    local_http_denied = secure_client.get("/nexusone/", environ_overrides={"REMOTE_ADDR": "127.0.0.1"})
+    assert local_http_denied.status_code == 403
     https_allowed = secure_client.get("/nexusone/", environ_overrides={"REMOTE_ADDR": "192.168.1.50", "wsgi.url_scheme": "https"})
     assert https_allowed.status_code == 401
 
