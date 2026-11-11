@@ -67,7 +67,7 @@ class ConfigStore:
         result: dict[str, Any] = {}
         for integration, values in data.items():
             values = values if isinstance(values, dict) else {}
-            visible = {}
+            visible = {key + "_configured": bool(values.get(key)) for key in _SECRET_FIELDS[integration]}
             for key, value in values.items():
                 if key in _SECRET_FIELDS[integration]:
                     visible[key + "_configured"] = bool(value)
