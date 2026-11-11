@@ -101,3 +101,23 @@ def test_telegram_connected_service_credentials_are_write_only(tmp_path):
         store.update({"telegram": {"ollama_timeout": "0"}})
     with pytest.raises(ConfigurationError):
         store.update({"telegram": {"gemini_base_url": "javascript:alert(1)"}})
+
+
+
+def test_discord_redirect_uri_allowed_origins_and_separate_pin(tmp_path):
+    store = ConfigStore(tmp_path / "settings.json")
+    with pytest.raises(ConfigurationError):
+        store.update({"discord": {"links_pin": "7171"}})
+    with pytest.raises(ConfigurationError):
+        store.update({"discord": {"allowed_origins": "https://example.com/path"}})
+    with pytest.raises(ConfigurationError):
+        store.update({"discord": {"redirect_uri": "http://example.com/callback"}})
+    public = store.update({"discord": {
+        "application_id": "123456789012345678",
+        "redirect_uri": "https://example.com/callback",
+        "activity_origin": "https://activity.example.com",
+        "allowed_origins": "https://activity.example.com,http://localhost:3000",
+        "links_pin": "longer-pin",
+    }})
+    assert public["discord"]["links_pin_configured"] is True
+    assert public["discord"]["allowed_origins"] == "https://activity.example.com,http://localhost:3000"
