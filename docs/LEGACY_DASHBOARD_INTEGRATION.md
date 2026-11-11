@@ -32,14 +32,16 @@ install_nexusone_gateway(app, {
 
 The helper takes the existing Flask app's `secret_key` and session cookie name automatically. Passing the actual `DASHBOARD_AUTH_DB` path is mandatory: the gateway refuses to install without it, rather than silently trusting a signed cookie without checking account existence and current role.
 
-4. Add a link to the existing dashboard navigation:
-
-```html
-<a href="/nexusone/">NexusOne</a>
-```
-
-5. Restart the dashboard service during a maintenance window. The dashboard remains at its normal root URL; NexusOne is available at `/nexusone/`.
-6. Verify login, logout, viewer/admin access, Explorer operations, and the legacy dashboard's existing APIs before enabling any new service controls.
+4. The gateway's legacy security bridge adds a File Explorer link to the existing
+   dashboard taskbar and an administrator-only Integration Configuration link.
+   An optional general NexusOne overview link can be added to the dashboard
+   navigation with `<a href="/nexusone/">NexusOne</a>`.
+5. Restart the dashboard service during a maintenance window. The dashboard
+   remains at its normal root URL; NexusOne pages are available under
+   `/nexusone/`.
+6. Verify login, logout, viewer/admin access, Explorer operations, the
+   Configuration link visibility, and the legacy dashboard's existing APIs
+   before enabling any new service controls.
 
 ## Security bridge installed by the gateway
 
