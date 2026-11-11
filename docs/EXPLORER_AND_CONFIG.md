@@ -14,13 +14,13 @@ The full Explorer page is served at `/explorer` and requires an authenticated se
 
 The normal API request limit remains 2 MiB. The upload endpoint has its own per-chunk limit, so the application does not need to buffer an entire file in RAM or set an unlimited global request body size.
 
-There is no arbitrary total-file-size cap in the upload manager. Available disk space, a reserved free-space margin, the maximum number of simultaneous sessions, filesystem limits, and browser/device limits still apply. The current default allows three active uploads and reserves 32 MiB of free space.
+There is no arbitrary total-file-size cap in the upload manager. Available disk space, a reserved free-space margin, the maximum number of simultaneous sessions, filesystem limits, and browser/device limits still apply. The current default allows three active uploads per authenticated user and reserves 32 MiB of free space. The Explorer page provides a cancel action; canceled sessions remove their staging files. Resume keys include the file modification time to avoid accidentally continuing a different same-size file with the same name.
 
 ### Current limitations to close before release
 
 - Upload session metadata is persisted in private sidecar files inside the staging directory. Sessions can resume after a NexusOne restart and expire after 24 hours. The staging directory is owner-only; sessions are bound to the authenticated dashboard username.
 - The new Explorer UI is a first integrated replacement page, but it still needs visual integration with the legacy dashboard theme and a parity review against all existing Explorer edge cases.
-- The browser Explorer currently processes selected files sequentially. Parallel multi-file scheduling, drag-and-drop, and explicit cancel controls can be added after the core path is verified.
+- The browser Explorer currently processes selected files sequentially. Drag-and-drop and parallel multi-file scheduling remain optional future improvements.
 - The Explorer root defaults to the current user's home directory. The final migration must preserve the existing Explorer path policy and test symlink and traversal handling against the real dashboard adapter.
 
 ## Phone-to-PC access
@@ -36,7 +36,7 @@ The admin-only page is served at `/settings`; API endpoints are `GET /api/config
 - Secrets are write-only at the API boundary. The public configuration response returns only a configured/not-configured flag.
 - Blank secret fields preserve existing values. Separate clear checkboxes deliberately remove a stored secret.
 - Configuration is written atomically outside the repository, with directory mode 0700 and file mode 0600.
-- Configuration changes are not yet wired to restart or reconfigure the legacy bot processes. That work belongs to the integration-adapter phase.
-- The foundation app does not create its own login accounts. During staged migration it can validate the existing dashboard Flask session: by default it reads `~/.config/system-dashboard/secret_key`, uses the standard `session` cookie name, and maps the legacy `user` role to the `viewer` capability set. It fails closed when no authenticated session is present. The old dashboard and NexusOne cannot both bind port 7171 simultaneously; deployment must integrate them behind one listener or migrate the dashboard routes before switching services.
+- Configuration changes are audited without recording secret values, but they are not yet wired to restart or reconfigure the legacy bot processes. That work belongs to the integration-adapter phase.
+- The foundation app does not create its own login accounts. During staged migration it validates the existing dashboard Flask session: by default it reads `~/.config/system-dashboard/secret_key`, uses the standard `session` cookie name, and maps the legacy `user` role to the `viewer` capability set. When the legacy user database exists, the current role and account existence are re-read on every request so role revocations and account deletions take effect immediately. It fails closed when no authenticated session is present. The old dashboard and NexusOne cannot both bind port 7171 simultaneously; deployment must integrate them behind one listener or migrate the dashboard routes before switching services.
 
 The credentials file is protected by filesystem permissions, not application-level encryption. The operating-system account and disk security remain part of the trust boundary. Never commit the configuration file or copy secrets into issue reports or logs.
