@@ -62,3 +62,14 @@ def test_discord_ids_and_activity_origin_are_validated(tmp_path):
         "activity_origin": "https://activity.example.com",
     }})
     assert saved["discord"]["activity_origin"] == "https://activity.example.com"
+
+
+
+def test_telegram_reveal_pin_must_be_four_to_twelve_digits(tmp_path):
+    store = ConfigStore(tmp_path / "settings.json")
+    with pytest.raises(ConfigurationError):
+        store.update({"telegram": {"links_pin": "abcd"}})
+    with pytest.raises(ConfigurationError):
+        store.update({"telegram": {"links_pin": "123"}})
+    saved = store.update({"telegram": {"links_pin": "7171"}})
+    assert saved["telegram"]["links_pin_configured"] is True
