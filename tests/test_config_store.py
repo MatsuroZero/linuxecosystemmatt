@@ -43,3 +43,20 @@ def test_telegram_group_chat_ids_may_be_negative(tmp_path):
     assert public["telegram"]["chat_ids"] == ["-1001234567890"]
     with pytest.raises(ConfigurationError):
         store.update({"telegram": {"authorized_user_ids": ["-12345"]}})
+
+
+
+def test_discord_ids_and_activity_origin_are_validated(tmp_path):
+    store = ConfigStore(tmp_path / "settings.json")
+    with pytest.raises(ConfigurationError):
+        store.update({"discord": {"application_id": "not-an-id"}})
+    with pytest.raises(ConfigurationError):
+        store.update({"discord": {"activity_origin": "http://example.com"}})
+    with pytest.raises(ConfigurationError):
+        store.update({"discord": {"activity_origin": "https://example.com/path"}})
+    saved = store.update({"discord": {
+        "application_id": "123456789012345678",
+        "client_id": "123456789012345678",
+        "activity_origin": "https://activity.example.com",
+    }})
+    assert saved["discord"]["activity_origin"] == "https://activity.example.com"
