@@ -87,21 +87,11 @@ class NexusOneGateway:
         return rewritten, filtered
 
     def __call__(self, environ: dict[str, Any], start_response: Callable) -> Iterable[bytes]:
-        path = str(environ.get("PATH_INFO", "/"))
-        if path == _UI_PREFIX or path.startswith(_UI_PREFIX + "/"):
-            prefix = _UI_PREFIX
-            ui = True
-        elif path == _API_PREFIX or path.startswith(_API_PREFIX + "/"):
-            prefix = _API_PREFIX
-            ui = False
-        else:
-            return self.legacy_wsgi(environ, start_response)
-
         remote = environ.get("REMOTE_ADDR")
         scheme = str(environ.get("wsgi.url_scheme", "http"))
-        # A local reverse proxy can make remote clients appear to originate
-        # from loopback. Treat forwarded requests conservatively as remote;
-        # never trust forwarded headers to grant access.
+        # Apply the network boundary to the entire dashboard, not only the
+        # NexusOne mounts. A local reverse proxy can make remote clients appear
+        # to originate from loopback, so forwarded requests are treated remote.
         has_forwarded_identity = bool(
             environ.get("HTTP_FORWARDED") or environ.get("HTTP_X_FORWARDED_FOR")
         )
@@ -115,13 +105,23 @@ class NexusOneGateway:
             ])
             return [body]
         if not is_local_request and not self.allow_lan:
-            body = b"NexusOne is available on this machine only."
+            body = b"The dashboard is available on this machine only."
             start_response("403 Forbidden", [
                 ("Content-Type", "text/plain; charset=utf-8"),
                 ("Content-Length", str(len(body))),
                 ("Cache-Control", "no-store"),
             ])
             return [body]
+
+        path = str(environ.get("PATH_INFO", "/"))
+        if path == _UI_PREFIX or path.startswith(_UI_PREFIX + "/"):
+            prefix = _UI_PREFIX
+            ui = True
+        elif path == _API_PREFIX or path.startswith(_API_PREFIX + "/"):
+            prefix = _API_PREFIX
+            ui = False
+        else:
+            return self.legacy_wsgi(environ, start_response)
 
         mounted = self._mount(environ, prefix)
         if not ui:
@@ -180,6 +180,7 @@ def install_nexusone_gateway(
     )
     if allow_lan:
         settings["SESSION_COOKIE_SECURE"] = True
+        legacy_app.config["SESSION_COOKIE_SECURE"] = True
     if not settings.get("DASHBOARD_AUTH_DB"):
         raise RuntimeError(
             "DASHBOARD_AUTH_DB must point to the legacy dashboard's users database"
