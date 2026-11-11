@@ -1,0 +1,18 @@
+# Copy to ~/.config/nexusone/config.toml and chmod 600.
+[server]
+host = "127.0.0.1"
+port = 7171
+allow_lan = false
+
+[security]
+session_cookie_secure = true
+max_request_bytes = 2097152
+rate_limit_per_minute = 120
+
+[paths]
+# Explorer is confined to the current user's workspace.
+explorer_root = "~/"
+
+[integrations]
+telegram_enabled = false
+discord_enabled = false
