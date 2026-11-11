@@ -58,7 +58,7 @@ def test_explorer_upload_requires_role_and_supports_chunks(tmp_path):
     assert done.status_code == 200
     assert done.json == {"filename": "x.bin", "size": 6}
     assert app.extensions["nexusone_uploads"].root == (tmp_path / "home").resolve()
-    assert list((tmp_path / "home").rglob("x.bin"))[0].read_bytes() == b"abcdef"
+    assert next(iter((tmp_path / "home").rglob("x.bin"))).read_bytes() == b"abcdef"
 
 
 def test_regular_requests_remain_bounded_but_upload_chunks_have_separate_limit(tmp_path):
