@@ -45,8 +45,8 @@ def render_telegram_environment(settings: dict[str, Any]) -> str:
     if isinstance(user_ids, list) and user_ids:
         normalized = [str(item).strip() for item in user_ids if str(item).strip().isdigit()]
         if normalized:
-            # The legacy bot currently reads one ID. Preserve a plural variable
-            # for the multi-user adapter migration while remaining compatible.
+            # Export the plural allowlist for the updated adapter and keep the
+            # first-ID variable for backward compatibility with older installs.
             values["TELEGRAM_ALLOWED_USER_ID"] = normalized[0]
             values["TELEGRAM_ALLOWED_USER_IDS"] = ",".join(normalized)
 
