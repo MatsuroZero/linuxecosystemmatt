@@ -133,6 +133,16 @@ class UploadManager:
             del self._sessions[upload_id]
             return {"filename": state["filename"], "size": state["size"]}
 
+    def status(self, upload_id: str) -> dict:
+        with self._lock:
+            state = self._sessions.get(upload_id)
+            if state is None:
+                raise UploadError("Unknown or expired upload")
+            return {
+                "filename": state["filename"], "size": state["size"],
+                "offset": state["offset"], "chunk_limit": self.chunk_limit,
+            }
+
     def cancel(self, upload_id: str) -> None:
         with self._lock:
             state = self._sessions.pop(upload_id, None)
