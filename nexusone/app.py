@@ -78,6 +78,71 @@ byId("settings").addEventListener("submit",async e=>{
 load().catch(e=>byId("status").textContent="Configuration unavailable: "+e.message);
 </script></html>"""
 
+_EXPLORER_UPLOAD_PAGE = """<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NexusOne Explorer · Upload</title>
+<style>
+body{font:16px system-ui;max-width:850px;margin:3rem auto;padding:0 1rem;background:#111827;color:#e5e7eb}
+main{background:#1f2937;border:1px solid #374151;border-radius:12px;padding:1.4rem}
+input,button{padding:.7rem;margin:.35rem 0}input[type=text],input[type=file]{box-sizing:border-box;width:100%;background:#111827;color:white;border:1px solid #4b5563;border-radius:6px}
+button{border:0;border-radius:6px;background:#8b5cf6;color:white;font-weight:600;cursor:pointer}
+progress{width:100%;height:1.2rem}small{color:#9ca3af}.item{border-top:1px solid #374151;padding:.8rem 0}
+</style>
+<h1>NexusOne · Explorer uploads</h1>
+<main>
+<p>Upload files into your configured Explorer workspace. Large files are sent in streamed chunks. If the connection drops, select the same file again to resume while the server is still running.</p>
+<label>Destination folder (relative to Explorer root)
+<input id="destination" type="text" value="Phone" placeholder="e.g. Phone/Camera"></label>
+<label>Select files
+<input id="files" type="file" multiple></label>
+<button id="upload">Upload selected files</button>
+<div id="status" role="status"></div>
+<div id="items"></div>
+</main>
+<script>
+let csrf="",activeController=null;
+const byId=id=>document.getElementById(id);
+async function init(){const r=await fetch("/api/security/csrf");csrf=(await r.json()).token;}
+async function call(url,options={}){return fetch(url,{...options,headers:{...(options.headers||{}),"X-CSRF-Token":csrf}});}
+function keyFor(file,dest){return "nexusone-upload:"+encodeURIComponent(dest)+":"+encodeURIComponent(file.name)+":"+file.size;}
+async function uploadFile(file,dest){
+ const key=keyFor(file,dest);let saved=null,uploadId=null,offset=0,chunkLimit=8*1024*1024;
+ try{saved=JSON.parse(localStorage.getItem(key)||"null");}catch{}
+ if(saved){
+  const check=await fetch("/api/explorer/uploads/"+saved.upload_id);
+  if(check.ok){const state=await check.json();if(state.filename===file.name&&state.size===file.size&&saved.destination===dest){uploadId=saved.upload_id;offset=state.offset;chunkLimit=state.chunk_limit;}}
+  if(!uploadId)localStorage.removeItem(key);
+ }
+ if(!uploadId){
+  const started=await call("/api/explorer/uploads",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filename:file.name,destination:dest,size:file.size})});
+  if(!started.ok)throw Error(await started.text());
+  const state=await started.json();uploadId=state.upload_id;offset=state.offset;chunkLimit=state.chunk_limit;
+  localStorage.setItem(key,JSON.stringify({upload_id:uploadId,destination:dest}));
+ }
+ const item=document.createElement("div");item.className="item";const title=document.createElement("div");title.textContent=file.name+" · "+file.size.toLocaleString()+" bytes";const bar=document.createElement("progress");bar.max=100;bar.value=file.size?offset/file.size*100:100;const detail=document.createElement("small");detail.textContent="Resuming at "+offset.toLocaleString()+" bytes";item.append(title,bar,detail);byId("items").append(item);
+ while(offset<file.size){
+  const next=Math.min(offset+chunkLimit,file.size),blob=file.slice(offset,next);
+  activeController=new AbortController();
+  const response=await call("/api/explorer/uploads/"+uploadId+"?offset="+offset,{method:"PUT",body:blob,signal:activeController.signal,headers:{"Content-Type":"application/octet-stream"}});
+  if(!response.ok)throw Error(await response.text());
+  const progress=await response.json();offset=progress.offset;bar.value=offset/file.size*100;detail.textContent=offset.toLocaleString()+" / "+file.size.toLocaleString()+" bytes";
+ }
+ const finished=await call("/api/explorer/uploads/"+uploadId+"/finish",{method:"POST"});
+ if(!finished.ok)throw Error(await finished.text());
+ localStorage.removeItem(key);bar.value=100;detail.textContent="Complete";
+}
+byId("upload").addEventListener("click",async()=>{
+ byId("status").textContent="";byId("items").replaceChildren();
+ const files=[...byId("files").files],dest=byId("destination").value.trim();
+ if(!files.length){byId("status").textContent="Choose at least one file.";return;}
+ byId("upload").disabled=true;
+ try{await init();for(const file of files){await uploadFile(file,dest);}byId("status").textContent="All selected files uploaded successfully.";}
+ catch(e){byId("status").textContent="Upload paused: "+e.message+" Select the same file again to resume.";}
+ finally{byId("upload").disabled=false;activeController=null;}
+});
+</script></html>"""
+
+
 
 def resolve_bind_host(environ=None) -> str:
     values = os.environ if environ is None else environ
@@ -171,6 +236,11 @@ def create_app(config=None) -> Flask:
     @app.get("/api/security/csrf")
     def csrf():
         return jsonify(token=issue_csrf_token(session))
+
+    @app.get("/explorer/uploads")
+    def explorer_upload_page():
+        _role_required(Capability.EXPLORER_READ)()
+        return render_template_string(_EXPLORER_UPLOAD_PAGE)
 
     @app.get("/settings")
     def settings_page():
