@@ -209,7 +209,7 @@ byId("paste").onclick=async()=>{
 byId("delete").onclick=async()=>{const paths=selectedPaths();if(!paths.length){setStatus("Select items to delete.");return;}if(!confirm("Delete "+paths.length+" selected item(s)? Folder contents are deleted too."))return;try{const data=await api("/api/files/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({paths})});clipboard=data.clipboard||null;await loadFiles();setStatus("Deleted "+paths.length+" item(s).");}catch(e){setStatus("Delete failed: "+e.message);}};
 byId("upload").onclick=()=>byId("file-input").click();
 byId("file-input").onchange=async event=>{const files=[...event.target.files];event.target.value="";for(const file of files){try{await uploadFile(file);}catch(e){setStatus("Upload paused: "+e.message+" Select the same file again to resume.");break;}}await loadFiles();};
-function uploadKey(file){return "nexusone-upload:"+encodeURIComponent(currentPath)+":"+encodeURIComponent(file.name)+":"+file.size;}
+function uploadKey(file){return "nexusone-upload:"+encodeURIComponent(currentPath)+":"+encodeURIComponent(file.name)+":"+file.size+":"+file.lastModified;}
 async function uploadFile(file){
  const key=uploadKey(file);let saved=null,uploadId=null,offset=0,chunkLimit=8*1024*1024;
  try{saved=JSON.parse(localStorage.getItem(key)||"null");}catch{}
@@ -249,7 +249,7 @@ let csrf="",activeController=null;
 const byId=id=>document.getElementById(id);
 async function init(){const r=await fetch("/api/security/csrf");csrf=(await r.json()).token;}
 async function call(url,options={}){return fetch(url,{...options,headers:{...(options.headers||{}),"X-CSRF-Token":csrf}});}
-function keyFor(file,dest){return "nexusone-upload:"+encodeURIComponent(dest)+":"+encodeURIComponent(file.name)+":"+file.size;}
+function keyFor(file,dest){return "nexusone-upload:"+encodeURIComponent(dest)+":"+encodeURIComponent(file.name)+":"+file.size+":"+file.lastModified;}
 async function uploadFile(file,dest){
  const key=keyFor(file,dest);let saved=null,uploadId=null,offset=0,chunkLimit=8*1024*1024;
  try{saved=JSON.parse(localStorage.getItem(key)||"null");}catch{}
