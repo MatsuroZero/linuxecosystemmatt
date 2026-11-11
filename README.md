@@ -9,11 +9,14 @@ It is being assembled from the existing System Dashboard, Nexus Control CLI, Tel
 ## Design principles
 
 - Localhost-only by default; LAN access is an explicit deployment choice.
+- Default dashboard address is `http://127.0.0.1:7171`; the port is configurable.
 - One authorization policy shared by every interface.
-- Administrator-only access for terminal, power, service, Docker, credential, and saved-command controls.
+- Administrator-only access for terminal, power, service, Docker, credential, configuration, and saved-command controls.
 - CSRF protection, bounded requests, rate limits, and auditable state changes.
 - Small modules with independent tests.
 - Existing Explorer access remains available, constrained to the configured user workspace.
+- Explorer supports large streaming and resumable uploads without a small arbitrary file-size cap; available disk space and configurable resource safeguards remain authoritative.
+- A central administrator-only Configuration tab manages Telegram/Discord credentials, IDs, allowlists, and integration status without exposing stored secrets to the browser.
 - Preserve historical snapshots in an immutable archive. Never delete source backups as part of migration.
 - No secrets, environment files, dependency folders, caches, or generated bundles in source control.
 
@@ -47,7 +50,7 @@ The source audit found an existing Flask dashboard, a useful Nexus CLI foundatio
 
 The uploaded Discord archive contains a populated `.env` and bundled `node_modules`. Neither is suitable for publication. Treat credentials in that archive as exposed and rotate them before deployment. The original archive is retained as audit input; it is not copied into this repository.
 
-The detailed audit and architecture documents are being developed on the `nexusone-foundation` working branch.
+Additional owner-confirmed requirements are recorded in [docs/USER_REQUIREMENTS_ADDENDUM.md](docs/USER_REQUIREMENTS_ADDENDUM.md), including Explorer large-file transfers, central integration configuration, the default port, and safe opt-in LAN access for phone transfers.
 
 ## Development
 
@@ -63,6 +66,8 @@ python -m pytest
 python -m nexusone.app
 ```
 
-The web app binds to `127.0.0.1` by default. Production requires `NEXUSONE_SECRET_KEY`. Do not enable LAN binding until HTTPS, authentication, firewall rules, and the integration origin allowlist have been configured.
+The web app binds to `127.0.0.1:7171` by default. Set `NEXUSONE_PORT` to override the port. Production requires `NEXUSONE_SECRET_KEY`. Do not enable LAN binding until authentication, firewall rules, and secure transport have been configured.
+
+A phone cannot reach a service bound only to `127.0.0.1` on the PC. To upload from a phone, explicitly enable the documented LAN mode and use the PC's LAN address; keep the firewall restricted to the trusted local network.
 
 Never run the web process as root. Use narrowly scoped system permissions only where a specific adapter requires them.
