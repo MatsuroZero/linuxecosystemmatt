@@ -58,3 +58,13 @@ def test_upload_session_survives_restart_and_is_user_scoped(tmp_path):
     restarted.append(upload_id, 4, io.BytesIO(b"efgh"), owner="matty")
     restarted.finish(upload_id, owner="matty")
     assert (tmp_path / "Phone" / "backup.bin").read_bytes() == b"abcdefgh"
+
+
+
+def test_concurrent_upload_limit_is_per_user(tmp_path):
+    manager = UploadManager(tmp_path, max_active=1, min_free_bytes=0)
+    manager.start("one.bin", "", 1, owner="alice")
+    with pytest.raises(UploadError, match="maximum number"):
+        manager.start("two.bin", "", 1, owner="alice")
+    other = manager.start("other-user.bin", "", 1, owner="bob")
+    assert manager.status(other["upload_id"], owner="bob")["filename"] == "other-user.bin"
