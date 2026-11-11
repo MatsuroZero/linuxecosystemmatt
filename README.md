@@ -46,15 +46,15 @@ nexusone/
 
 ## Current audit notes
 
-The source audit found an existing Flask dashboard, a useful Nexus CLI foundation, a Telegram bot with a user allowlist, and a Discord Activity with a single-user allowlist and 31 passing Node tests in an isolated run.
+The source audit found an existing Flask dashboard, a useful Nexus CLI foundation, a Telegram bot with a single-user allowlist in the public reference copy, and a Discord Activity. The open Discord draft PR #7 now supports comma-separated multi-user IDs and passes 34 Node tests, but it is not merged or deployed. The local Telegram bot branch still needs a multi-user compatibility check.
 
 The uploaded Discord archive contains a populated `.env` and bundled `node_modules`. Neither is suitable for publication. Treat credentials in that archive as exposed and rotate them before deployment. The original archive is retained as audit input; it is not copied into this repository.
 
-Additional owner-confirmed requirements are recorded in [docs/USER_REQUIREMENTS_ADDENDUM.md](docs/USER_REQUIREMENTS_ADDENDUM.md). The first Explorer upload and integration-settings implementation notes are in [docs/EXPLORER_AND_CONFIG.md](docs/EXPLORER_AND_CONFIG.md). The current foundation exposes an admin-only `/settings` page, a `/services` status/control page, an administrator-only `/activity` audit page, and an authenticated `/explorer` file manager with resumable chunk uploads. Service discovery uses a fixed systemd allowlist. System services are status-only; administrators can control only explicitly approved user-scope units until a polkit helper is introduced. Upload sessions persist across server restarts and are scoped to the signed-in dashboard username. A same-origin gateway can mount the legacy dashboard and NexusOne together without replacing the old login or colliding with its Explorer APIs; see [docs/LEGACY_DASHBOARD_INTEGRATION.md](docs/LEGACY_DASHBOARD_INTEGRATION.md) before attempting the staged integration.
+Additional owner-confirmed requirements are recorded in [docs/USER_REQUIREMENTS_ADDENDUM.md](docs/USER_REQUIREMENTS_ADDENDUM.md). The first Explorer upload and integration-settings implementation notes are in [docs/EXPLORER_AND_CONFIG.md](docs/EXPLORER_AND_CONFIG.md). The current foundation exposes an admin-only `/settings` page, a `/services` status/control page, an administrator-only `/activity` audit page, and an authenticated `/explorer` file manager with resumable chunk uploads. Service discovery uses a fixed systemd allowlist. System services are status-only; administrators can control only explicitly approved user-scope units until a polkit helper is introduced. Upload sessions persist across server restarts and are scoped to the signed-in dashboard username. The same-origin gateway now embeds File Transfer and administrator-only Integrations tabs in the legacy dashboard, restores its existing section navigation, and preserves the original login. It also applies the loopback/HTTPS boundary to both legacy and NexusOne routes; see [docs/LEGACY_DASHBOARD_INTEGRATION.md](docs/LEGACY_DASHBOARD_INTEGRATION.md) before attempting the staged integration.
 
 ## Development
 
-The current foundation includes shared security primitives, live legacy-account role refresh, Explorer file operations, resumable uploads, integration settings, allowlisted systemd/Docker controls, audit logging, and a same-origin legacy-dashboard gateway. GitHub Actions currently verifies 54 Python tests and Ruff lint. Existing services remain the source of truth until each migration step has passed its tests and a manual smoke test on the target workstation.
+The current foundation includes shared security primitives, live legacy-account role refresh, Explorer file operations, resumable uploads, integration settings, allowlisted systemd/Docker controls, audit logging, and a same-origin legacy-dashboard gateway. GitHub Actions currently verifies 60 Python tests, the injected dashboard JavaScript syntax, and Ruff lint. Existing services remain the source of truth until each migration step has passed its tests and a manual smoke test on the target workstation.
 
 ## Local development
 
@@ -68,6 +68,6 @@ python -m nexusone.app
 
 The web app binds to `127.0.0.1:7171` by default. Set `NEXUSONE_PORT` to override the port. Production requires `NEXUSONE_SECRET_KEY`. Do not enable LAN binding until authentication, firewall rules, and secure transport have been configured.
 
-A phone cannot reach a service bound only to `127.0.0.1` on the PC. To upload from a phone, explicitly enable the documented LAN mode and use the PC's LAN address; keep the firewall restricted to the trusted local network.
+A phone cannot reach a service bound only to `127.0.0.1` on the PC. To upload from a phone, explicitly enable LAN mode on the gateway, configure HTTPS, and use the PC's LAN address; both the legacy dashboard and NexusOne routes reject plain-HTTP LAN requests. Keep the firewall restricted to the trusted local network.
 
 Never run the web process as root. Use narrowly scoped system permissions only where a specific adapter requires them.
