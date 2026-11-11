@@ -13,7 +13,6 @@ from flask import Response, g, request, session
 
 from nexusone.security.rbac import Capability, has_capability
 
-
 _SHELL_CSS = r"""
 :root {
   color-scheme: dark;
