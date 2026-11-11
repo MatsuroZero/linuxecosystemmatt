@@ -46,7 +46,7 @@ def test_project_actions_are_fixed_and_do_not_use_shell(tmp_path, monkeypatch):
     assert docker_manager.control_project(compose, "stop")["action"] == "stop"
     assert docker_manager.control_project(compose, "restart")["action"] == "restart"
     assert calls[0][-2:] == ["up", "-d"]
-    assert calls[1][-1] == "down"
+    assert calls[1][-1] == "stop"
     assert calls[2][-1] == "restart"
     with pytest.raises(ValueError):
         docker_manager.control_project(compose, "exec")
