@@ -44,3 +44,14 @@ def test_production_requires_stable_secret(monkeypatch):
     monkeypatch.delenv("NEXUSONE_SECRET_KEY", raising=False)
     with pytest.raises(RuntimeError):
         create_app()
+
+\n\ndef test_rate_limit_returns_429_after_configured_budget():
+    app = create_app({
+        "TESTING": True, "SECRET_KEY": "test-secret",
+        "SESSION_COOKIE_SECURE": False, "RATE_LIMIT": 1,
+    })
+    client = app.test_client()
+    assert client.get("/api/health").status_code == 200
+    response = client.get("/api/health")
+    assert response.status_code == 429
+    assert response.json == {"error": "Too many requests"}
