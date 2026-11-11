@@ -49,13 +49,14 @@ class ConfigStore:
         return {name: data.get(name, {}) for name in ("telegram", "discord")}
 
     @staticmethod
-    def _validate_ids(values: Any, field: str) -> list[str]:
+    def _validate_ids(values: Any, field: str, allow_negative: bool = False) -> list[str]:
         if not isinstance(values, list):
             raise ConfigurationError(f"{field} must be a list")
         normalized = []
         for value in values:
             item = str(value).strip()
-            if not item.isdigit() or len(item) > 24:
+            numeric = item[1:] if allow_negative and item.startswith("-") else item
+            if not numeric.isdigit() or len(item) > 24:
                 raise ConfigurationError(f"{field} contains an invalid numeric ID")
             if item not in normalized:
                 normalized.append(item)
@@ -100,7 +101,7 @@ class ConfigStore:
                         else:
                             raise ConfigurationError(f"{key} must be text")
                     elif key in _LIST_FIELDS[integration]:
-                        current[key] = self._validate_ids(value, key)
+                        current[key] = self._validate_ids(value, key, allow_negative=(key == "chat_ids"))
                     elif key == "enabled":
                         if not isinstance(value, bool):
                             raise ConfigurationError("enabled must be boolean")
