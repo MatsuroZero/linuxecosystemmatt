@@ -72,6 +72,20 @@ def test_installer_requires_expected_dashboard_variables(tmp_path):
         install_dashboard_gateway(app)
 
 
+def test_installer_rejects_dashboard_symbols_defined_after_main_guard(tmp_path):
+    app = tmp_path / "app.py"
+    app.write_text(
+        'app = Flask(__name__)\n'
+        'if __name__ == "__main__":\n'
+        '    pass\n'
+        'DASHBOARD_AUTH_DB = Path("/tmp/users.sqlite3")\n'
+        '_SHARING_HOME = Path("/tmp")\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="before its main entry point"):
+        install_dashboard_gateway(app)
+
+
 def test_restore_keeps_a_recovery_copy_of_current_source(tmp_path):
     app = tmp_path / "app.py"
     backup = tmp_path / "original.bak"
