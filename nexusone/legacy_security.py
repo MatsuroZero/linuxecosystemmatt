@@ -1,0 +1,239 @@
+"""Security boundary for legacy System Dashboard routes during NexusOne migration.
+
+This adapter is installed after the legacy app's own login hook. It refreshes
+account roles, requires same-origin CSRF protection for unsafe requests, and
+keeps machine-control endpoints administrator-only while leaving Explorer and
+ordinary dashboard reads available to authenticated users.
+"""
+from __future__ import annotations
+
+import sqlite3
+from pathlib import Path
+from urllib.parse import urlsplit
+from typing import Any
+
+from flask import Flask, abort, request, session
+
+from nexusone.security.csrf import issue_csrf_token, verify_csrf_token
+
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+_ADMIN_ONLY_EXACT = frozenset({
+    "/api/terminal",
+    "/api/auth/terminal",
+    "/api/power",
+    "/api/wifi",
+    "/api/wifi/connect",
+    "/api/wifi/disconnect",
+    "/api/package/action",
+    "/api/desktop-app",
+    "/api/app",
+    "/api/scrcpy",
+    "/api/hypr/workspaces/switch",
+    "/api/process/kill",
+    "/api/serpantinum/reload",
+    "/api/serpantinum/action",
+    "/api/wallpaper/apply",
+    "/api/agent/run",
+    "/api/agent/approve",
+    "/api/screen/stream",
+    "/api/screen/live",
+    "/api/screen/capture",
+    "/api/screen/screenshots",
+    "/api/admin/users",
+    "/api/admin/restart",
+    "/api/audit/log",
+})
+_ADMIN_ONLY_BY_METHOD = {
+    "/api/serpantinum/settings": frozenset({"PUT"}),
+    "/api/power-profile": frozenset({"POST"}),
+    "/api/keep-awake": frozenset({"POST"}),
+    "/api/bluetooth": frozenset({"POST"}),
+    "/api/airplane": frozenset({"POST"}),
+    "/api/eye-protection": frozenset({"POST"}),
+    "/api/equalizer": frozenset({"POST"}),
+    "/api/ollama/server": frozenset({"POST"}),
+    "/api/sharing/server-name": frozenset({"POST"}),
+    "/api/sharing/channels": frozenset({"POST"}),
+}
+_ADMIN_ONLY_PREFIXES = (
+    "/api/mouse/",
+    "/api/keyboard/",
+    "/api/screen/files/",
+    "/api/admin/users/",
+    "/api/sharing/channels/",
+)
+_ADMIN_ONLY_METHOD_PREFIXES = (
+    ("/api/sharing/messages/", frozenset({"DELETE"})),
+)
+
+
+def _origin_matches(value: str, *, scheme: str, host: str) -> bool:
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == scheme
+        and parsed.netloc == host
+        and parsed.username is None
+        and parsed.password is None
+    )
+
+
+def _trusted_request_origin(trusted_origins: set[str]) -> bool:
+    origin = request.headers.get("Origin")
+    if origin:
+        if origin.rstrip("/") in trusted_origins:
+            return True
+        return _origin_matches(origin, scheme=request.scheme, host=request.host)
+
+    referer = request.headers.get("Referer")
+    if referer:
+        try:
+            parsed = urlsplit(referer)
+        except ValueError:
+            return False
+        origin_from_referer = f"{parsed.scheme}://{parsed.netloc}"
+        if origin_from_referer.rstrip("/") in trusted_origins:
+            return True
+        return _origin_matches(
+            origin_from_referer, scheme=request.scheme, host=request.host
+        )
+    return False
+
+
+def _requires_admin(path: str, method: str) -> bool:
+    if path in _ADMIN_ONLY_EXACT:
+        return True
+    if method in _ADMIN_ONLY_BY_METHOD.get(path, frozenset()):
+        return True
+    if any(path.startswith(prefix) for prefix in _ADMIN_ONLY_PREFIXES):
+        return True
+    return any(
+        path.startswith(prefix) and method in methods
+        for prefix, methods in _ADMIN_ONLY_METHOD_PREFIXES
+    )
+
+
+def _refresh_legacy_role(auth_db: Path) -> str | None:
+    username = str(session.get("username", "")).strip()
+    if not username:
+        return None
+    if username.casefold() == "marwan":
+        session["role"] = "admin"
+        return "admin"
+
+    if auth_db.is_file():
+        try:
+            uri = auth_db.resolve().as_uri() + "?mode=ro"
+            with sqlite3.connect(uri, uri=True, timeout=2) as db:
+                row = db.execute(
+                    "SELECT role FROM users WHERE lower(username)=lower(?)",
+                    (username,),
+                ).fetchone()
+        except sqlite3.Error:
+            abort(503, description="Account authorization is temporarily unavailable")
+        if row is None:
+            session.clear()
+            abort(401, description="Account is no longer active")
+        session["role"] = str(row[0])
+    role = session.get("role")
+    return role if isinstance(role, str) else None
+
+
+def install_legacy_security(
+    legacy_app: Flask,
+    *,
+    auth_db_path: str | Path,
+    trusted_origins: tuple[str, ...] | list[str] = (),
+) -> None:
+    """Install migration-time policy on the legacy Flask app exactly once."""
+    if legacy_app.extensions.get("nexusone_legacy_security"):
+        return
+
+    auth_db = Path(auth_db_path).expanduser()
+    trusted = {str(item).rstrip("/") for item in trusted_origins if str(item).strip()}
+
+    @legacy_app.before_request
+    def nexusone_legacy_request_policy():
+        if request.endpoint in {"login"} or request.path.startswith("/static/"):
+            return None
+
+        # The existing dashboard's login hook runs before this hook. Re-check
+        # the live account role so stale cookies cannot retain admin controls.
+        if not session.get("authenticated"):
+            return None
+
+        role = _refresh_legacy_role(auth_db)
+        username = str(session.get("username", "")).strip()
+        is_admin = username.casefold() == "marwan" and role == "admin"
+
+        if _requires_admin(request.path, request.method) and not is_admin:
+            abort(403, description="Administrator access required")
+
+        if request.method not in _SAFE_METHODS:
+            if not _trusted_request_origin(trusted):
+                abort(403, description="Untrusted request origin")
+            supplied = request.headers.get("X-CSRF-Token")
+            if not verify_csrf_token(session, supplied):
+                abort(403, description="CSRF validation failed")
+        else:
+            issue_csrf_token(session)
+        return None
+
+    @legacy_app.after_request
+    def nexusone_legacy_csrf_bootstrap(response):
+        if (
+            response.mimetype != "text/html"
+            or response.status_code >= 400
+            or not session.get("authenticated")
+        ):
+            return response
+
+        token = issue_csrf_token(session)
+        bootstrap = (
+            '<meta name="nexusone-csrf-token" content="' + token + '">'
+            '<script>(function(){'
+            'const token=document.querySelector("meta[name=nexusone-csrf-token]")?.content;'
+            'if(!token)return;'
+            'const nativeFetch=window.fetch.bind(window);'
+            'window.fetch=function(input,init={}){'
+            'const req=input instanceof Request?input:null;'
+            'const method=String(init.method||(req&&req.method)||"GET").toUpperCase();'
+            'const raw=req?req.url:String(input);'
+            'let url;try{url=new URL(raw,window.location.href)}catch(e){return nativeFetch(input,init)}'
+            'if(url.origin===window.location.origin&&!["GET","HEAD","OPTIONS"].includes(method)){'
+            'const headers=new Headers(req?req.headers:undefined);'
+            'new Headers(init.headers||{}).forEach((v,k)=>headers.set(k,v));'
+            'headers.set("X-CSRF-Token",token);'
+            'init={...init,headers};'
+            '}return nativeFetch(input,init);'
+            '};'
+            'document.addEventListener("submit",function(event){'
+            'const form=event.target;'
+            'if(!form||["GET","DIALOG"].includes(String(form.method||"GET").toUpperCase()))return;'
+            'let field=form.querySelector("input[name=nexusone_csrf]");'
+            'if(!field){field=document.createElement("input");field.type="hidden";'
+            'field.name="nexusone_csrf";form.appendChild(field)}field.value=token;'
+            '},true);'
+            '})();</script>'
+        )
+        html = response.get_data(as_text=True)
+        if 'name="nexusone-csrf-token"' not in html:
+            if "</head>" in html:
+                html = html.replace("</head>", bootstrap + "</head>", 1)
+            elif "<body" in html:
+                index = html.find(">", html.find("<body"))
+                if index >= 0:
+                    html = html[: index + 1] + bootstrap + html[index + 1 :]
+                else:
+                    html += bootstrap
+            else:
+                html = bootstrap + html
+            response.set_data(html)
+        return response
+
+    legacy_app.extensions["nexusone_legacy_security"] = {
+        "auth_db_path": str(auth_db),
+        "admin_only_routes": len(_ADMIN_ONLY_EXACT),
+    }
