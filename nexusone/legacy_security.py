@@ -156,7 +156,7 @@ def install_legacy_security(
     @legacy_app.before_request
     def nexusone_legacy_request_policy():
         if request.endpoint in {"login"} or request.path.startswith("/static/"):
-            return None
+            return
 
         # The existing dashboard's login hook runs before this hook. Re-check
         # the live account role so stale cookies cannot retain admin controls.
@@ -178,7 +178,6 @@ def install_legacy_security(
                 abort(403, description="CSRF validation failed")
         else:
             issue_csrf_token(session)
-        return None
 
     @legacy_app.after_request
     def nexusone_legacy_csrf_bootstrap(response):
