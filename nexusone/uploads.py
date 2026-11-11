@@ -152,9 +152,13 @@ class UploadManager:
         if isinstance(total_size, bool) or not isinstance(total_size, int) or total_size < 0:
             raise UploadError("Invalid total size")
         target = self._destination(str(PurePosixPath(destination) / filename))
+        owner_id = str(owner or "")
         with self._lock:
-            if len(self._sessions) >= self.max_active:
-                raise UploadError("Too many active uploads")
+            active_for_owner = sum(
+                1 for state in self._sessions.values() if state["owner"] == owner_id
+            )
+            if active_for_owner >= self.max_active:
+                raise UploadError("This user already has the maximum number of active uploads")
             if shutil.disk_usage(self.root).free - total_size < self.min_free_bytes:
                 raise UploadError("Insufficient free disk space for upload")
             upload_id = uuid.uuid4().hex
@@ -164,7 +168,7 @@ class UploadManager:
             state = {
                 "path": temp_path, "target": target, "size": total_size,
                 "offset": 0, "filename": filename, "created_at": time.time(),
-                "owner": str(owner or ""),
+                "owner": owner_id,
             }
             self._sessions[upload_id] = state
             try:
