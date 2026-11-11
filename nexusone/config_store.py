@@ -72,6 +72,15 @@ class ConfigStore:
                 normalized.append(item)
         return normalized
 
+    def runtime_integration(self, integration: str) -> dict[str, Any]:
+        """Return private integration settings for trusted server-side adapters only."""
+        if integration not in {"telegram", "discord"}:
+            raise ConfigurationError("Unknown integration")
+        with self._lock:
+            data = self._read()
+        values = data.get(integration, {})
+        return dict(values) if isinstance(values, dict) else {}
+
     def public_view(self) -> dict[str, Any]:
         with self._lock:
             data = self._read()
@@ -106,6 +115,8 @@ class ConfigStore:
                         if value is None:
                             current.pop(key, None)
                         elif isinstance(value, str):
+                            if len(value) > 4096 or any(char in value for char in "\\r\\n\\x00"):
+                                raise ConfigurationError(f"{key} contains invalid characters or is too long")
                             if value.strip():
                                 normalized = value.strip()
                                 if key == "links_pin" and (
@@ -122,6 +133,8 @@ class ConfigStore:
                             raise ConfigurationError("enabled must be boolean")
                         current[key] = value
                     elif isinstance(value, str) and len(value) <= 500:
+                        if any(char in value for char in "\\r\\n\\x00"):
+                            raise ConfigurationError(f"{key} contains invalid characters")
                         normalized = value.strip()
                         if key in {"application_id", "client_id"} and normalized and (
                             not normalized.isdigit() or len(normalized) > 24
