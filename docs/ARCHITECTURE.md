@@ -30,6 +30,7 @@ NexusOne Web/API
 - **Core:** typed service registry, action orchestration, health checks, event publication, settings, and a private SQLite audit trail for privileged configuration/service actions.
 - **Adapters:** systemd, Docker, Ollama, desktop controls, and Explorer.
 - **Service controls (first slice):** fixed systemd unit allowlist; all services expose status, while only approved user-scope units can be started/stopped/restarted from the web UI. System-scope units remain status-only until a narrowly scoped polkit helper is designed and installed.
+- **Docker Compose (first slice):** only the named Odysseus project and configured compose file are accepted. Admin-only actions are fixed to start, stop, and restart; no arbitrary compose arguments or shell commands are accepted.
 - **Explorer:** preserve access to the user's own workspace. Canonicalize paths and reject traversal and symlink escapes.
 - **Integrations:** keep Telegram and Discord independently restartable so one integration cannot crash the dashboard.
 
