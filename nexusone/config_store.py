@@ -98,7 +98,12 @@ class ConfigStore:
                             current.pop(key, None)
                         elif isinstance(value, str):
                             if value.strip():
-                                current[key] = value.strip()
+                                normalized = value.strip()
+                                if key == "links_pin" and (
+                                    not normalized.isdigit() or not 4 <= len(normalized) <= 12
+                                ):
+                                    raise ConfigurationError("links_pin must contain 4 to 12 digits")
+                                current[key] = normalized
                         else:
                             raise ConfigurationError(f"{key} must be text")
                     elif key in _LIST_FIELDS[integration]:
