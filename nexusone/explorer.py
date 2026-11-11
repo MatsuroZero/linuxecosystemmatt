@@ -27,7 +27,11 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
 
     def safe_path(raw_path: str = ".") -> Path:
         raw = str(raw_path or ".").strip() or "."
-        candidate = Path(raw).expanduser()
+        requested = Path(raw).expanduser()
+        if any(part == ".nexusone-upload-tmp" or part.startswith(".nexusone-upload-")
+               for part in requested.parts):
+            raise ValueError("Reserved Explorer path")
+        candidate = requested
         if not candidate.is_absolute():
             candidate = file_root / candidate
         try:
