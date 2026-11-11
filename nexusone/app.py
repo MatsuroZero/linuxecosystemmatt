@@ -13,6 +13,7 @@ from nexusone.security.csrf import issue_csrf_token, verify_csrf_token
 from nexusone.security.rate_limit import RateLimiter
 from nexusone.security.rbac import Capability, has_capability
 from nexusone.uploads import UploadError, UploadManager
+from nexusone.service_manager import control_service, list_services
 
 _MUTATING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 _CONFIG_PAGE = """<!doctype html>
@@ -479,6 +480,24 @@ def create_app(config=None) -> Flask:
             upload_id, owner=str(session.get("username", ""))
         )
         return jsonify(ok=True)
+
+    @app.get("/api/services")
+    def get_services():
+        _role_required(Capability.DASHBOARD_READ)()
+        return jsonify(services=list_services())
+
+    @app.post("/api/services/<name>/<action>")
+    def post_service_action(name, action):
+        _role_required(Capability.SERVICES_CONTROL)()
+        try:
+            result = control_service(name, action)
+        except PermissionError as error:
+            return jsonify(error=str(error)), 403
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
+        except RuntimeError as error:
+            return jsonify(error=str(error)), 502
+        return jsonify(ok=True, **result)
 
     return app
 
