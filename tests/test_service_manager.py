@@ -20,7 +20,6 @@ def test_service_discovery_uses_fixed_allowlist_and_no_shell(monkeypatch):
     }
     assert all(item["active"] == "active" for item in services)
     assert all("sudo" not in argv and "shell" not in argv for argv, _ in calls)
-    assert all("shell" not in kwargs for kwargs in [])
 
 
 def test_only_allowlisted_user_services_can_be_controlled(monkeypatch):
