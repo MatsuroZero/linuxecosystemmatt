@@ -17,6 +17,7 @@ from nexusone.security.rate_limit import RateLimiter
 from nexusone.security.rbac import Capability, has_capability
 from nexusone.service_manager import control_service, list_services
 from nexusone.uploads import UploadError, UploadManager
+from nexusone.ui_shell import install_ui_shell
 
 _MUTATING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 _CONFIG_PAGE = """<!doctype html>
@@ -667,6 +668,7 @@ def create_app(config=None) -> Flask:
             request.args.get("limit", default=100, type=int) or 100
         ))
 
+    install_ui_shell(app)
     return app
 
 
