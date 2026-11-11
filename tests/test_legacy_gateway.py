@@ -1,9 +1,11 @@
+import pytest
+
 from flask import Flask, jsonify, session
 from werkzeug.test import Client
 from werkzeug.wrappers import Response
 
 from nexusone.app import create_app
-from nexusone.legacy_gateway import NexusOneGateway
+from nexusone.legacy_gateway import NexusOneGateway, install_nexusone_gateway
 
 
 class LocalClient(Client):
@@ -90,3 +92,19 @@ def test_gateway_blocks_remote_access_unless_https_lan_mode_is_explicit(tmp_path
     assert http_denied.status_code == 403
     https_allowed = secure_client.get("/nexusone/", environ_overrides={"REMOTE_ADDR": "192.168.1.50", "wsgi.url_scheme": "https"})
     assert https_allowed.status_code == 401
+
+
+def test_install_helper_requires_live_auth_db_and_secures_lan_cookie(tmp_path):
+    legacy = Flask("legacy-dashboard")
+    legacy.secret_key = "shared-test-secret"
+    with pytest.raises(RuntimeError, match="DASHBOARD_AUTH_DB"):
+        install_nexusone_gateway(legacy)
+
+    nexusone = install_nexusone_gateway(legacy, {
+        "DASHBOARD_AUTH_DB": str(tmp_path / "dashboard-users.sqlite3"),
+        "EXPLORER_ROOT": str(tmp_path / "workspace"),
+        "CONFIG_FILE": str(tmp_path / "settings.json"),
+        "AUDIT_FILE": str(tmp_path / "audit.sqlite3"),
+    }, allow_lan=True)
+    assert nexusone.config["SESSION_COOKIE_SECURE"] is True
+    assert nexusone.config["SESSION_COOKIE_NAME"] == "session"
