@@ -27,7 +27,7 @@ NexusOne Web/API
 ## Modules
 
 - **Security:** identity/session validation, role-to-capability policy, CSRF, origin validation, request limits, rate limiting, audit.
-- **Core:** typed service registry, action orchestration, health checks, event publication, settings.
+- **Core:** typed service registry, action orchestration, health checks, event publication, settings, and a private SQLite audit trail for privileged configuration/service actions.
 - **Adapters:** systemd, Docker, Ollama, desktop controls, and Explorer.
 - **Service controls (first slice):** fixed systemd unit allowlist; all services expose status, while only approved user-scope units can be started/stopped/restarted from the web UI. System-scope units remain status-only until a narrowly scoped polkit helper is designed and installed.
 - **Explorer:** preserve access to the user's own workspace. Canonicalize paths and reject traversal and symlink escapes.
