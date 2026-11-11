@@ -18,7 +18,7 @@ There is no arbitrary total-file-size cap in the upload manager. Available disk 
 
 ### Current limitations to close before release
 
-- Upload session metadata currently lives in process memory. A temporary network interruption can resume while NexusOne remains running, but a NexusOne restart loses the session mapping. Persistent session metadata and stale staging cleanup are required before claiming restart-safe resume.
+- Upload session metadata is persisted in private sidecar files inside the staging directory. Sessions can resume after a NexusOne restart and expire after 24 hours. The staging directory is owner-only; sessions are bound to the authenticated dashboard username.
 - The upload page is currently a separate foundation route. It still needs to be integrated into the main dashboard's existing Explorer navigation and visual design.
 - The browser upload page currently processes selected files sequentially. Parallel multi-file scheduling and explicit cancel controls can be added after the core path is integrated.
 - The Explorer root defaults to the current user's home directory. The final migration must preserve the existing Explorer path policy and test symlink and traversal handling against the real dashboard adapter.
