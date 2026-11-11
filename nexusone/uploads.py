@@ -62,7 +62,7 @@ class UploadManager:
         if not isinstance(filename, str) or not filename.strip() or len(filename) > 255:
             raise UploadError("Invalid filename")
         filename = filename.replace("/", "_").replace("\\", "_").strip()
-        filename = re.sub(r"[\\x00-\\x1f]", "_", filename)
+        filename = re.sub(r"[\x00-\x1f]", "_", filename)
         if filename in {"", ".", ".."}:
             raise UploadError("Invalid filename")
         if not isinstance(total_size, int) or total_size < 0:
