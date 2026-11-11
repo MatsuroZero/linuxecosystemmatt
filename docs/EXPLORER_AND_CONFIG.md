@@ -4,7 +4,7 @@ This document describes the current foundation slice. It is not a claim that the
 
 ## Explorer upload flow
 
-The current standalone upload page is served at `/explorer/uploads` and requires an authenticated session with `explorer:read`. Upload API writes require `explorer:write`.
+The full Explorer page is served at `/explorer` and requires an authenticated session with `explorer:read`. It restores workspace listing, navigation, download, folder creation, rename, delete, copy/cut/paste, and chunked uploads. The upload-only utility remains available at `/explorer/uploads`. File-management writes and upload API writes require `explorer:write`.
 
 1. `POST /api/explorer/uploads` creates an upload session with filename, relative destination, and declared byte size.
 2. `PUT /api/explorer/uploads/<upload_id>?offset=<bytes>` streams one binary chunk. The default chunk size is 8 MiB.
@@ -19,8 +19,8 @@ There is no arbitrary total-file-size cap in the upload manager. Available disk 
 ### Current limitations to close before release
 
 - Upload session metadata is persisted in private sidecar files inside the staging directory. Sessions can resume after a NexusOne restart and expire after 24 hours. The staging directory is owner-only; sessions are bound to the authenticated dashboard username.
-- The upload page is currently a separate foundation route. It still needs to be integrated into the main dashboard's existing Explorer navigation and visual design.
-- The browser upload page currently processes selected files sequentially. Parallel multi-file scheduling and explicit cancel controls can be added after the core path is integrated.
+- The new Explorer UI is a first integrated replacement page, but it still needs visual integration with the legacy dashboard theme and a parity review against all existing Explorer edge cases.
+- The browser Explorer currently processes selected files sequentially. Parallel multi-file scheduling, drag-and-drop, and explicit cancel controls can be added after the core path is verified.
 - The Explorer root defaults to the current user's home directory. The final migration must preserve the existing Explorer path policy and test symlink and traversal handling against the real dashboard adapter.
 
 ## Phone-to-PC access
