@@ -51,7 +51,7 @@ def _systemctl(service: Service, *args: str) -> list[str]:
 def _state(service: Service, command: str) -> str:
     result = _run(_systemctl(service, command, service.unit))
     value = result.stdout.strip()
-    return value[:80] if value else ("unknown" if result.returncode else "unknown")
+    return value[:80] if value else "unknown"
 
 
 def list_services() -> list[dict]:
