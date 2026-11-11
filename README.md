@@ -47,7 +47,7 @@ The source audit found an existing Flask dashboard, a useful Nexus CLI foundatio
 
 The uploaded Discord archive contains a populated `.env` and bundled `node_modules`. Neither is suitable for publication. Treat credentials in that archive as exposed and rotate them before deployment. The original archive is retained as audit input; it is not copied into this repository.
 
-See [the audit report](docs/AUDIT.md) and [the architecture plan](docs/ARCHITECTURE.md).
+The detailed audit and architecture documents are maintained in the docs directory.
 
 ## Development
 
