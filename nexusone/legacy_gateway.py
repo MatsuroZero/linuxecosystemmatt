@@ -13,6 +13,8 @@ from typing import Any
 
 from flask import Flask
 
+from nexusone.legacy_security import install_legacy_security
+
 _UI_PREFIX = "/nexusone"
 _API_PREFIX = "/nexusone-api"
 _HTML_INJECT = (
@@ -183,6 +185,11 @@ def install_nexusone_gateway(
             "DASHBOARD_AUTH_DB must point to the legacy dashboard's users database"
         )
     nexusone_app = create_app(settings)
+    install_legacy_security(
+        legacy_app,
+        auth_db_path=settings["DASHBOARD_AUTH_DB"],
+        trusted_origins=tuple(settings.get("TRUSTED_ORIGINS", ())),
+    )
     legacy_app.wsgi_app = NexusOneGateway(
         legacy_app.wsgi_app,
         nexusone_app.wsgi_app,
