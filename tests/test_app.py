@@ -10,7 +10,7 @@ def test_health_and_security_headers():
     assert response.json == {"ok": True, "service": "nexusone"}
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["Cache-Control"] == "no-store"
-    assert app.config["MAX_CONTENT_LENGTH"] == 2 * 1024 * 1024
+    assert app.config["MAX_REQUEST_BYTES"] == 2 * 1024 * 1024
 
 
 def test_mutations_require_session_csrf_token():
