@@ -73,3 +73,29 @@ def test_telegram_reveal_pin_must_be_four_to_twelve_digits(tmp_path):
         store.update({"telegram": {"links_pin": "123"}})
     saved = store.update({"telegram": {"links_pin": "7171"}})
     assert saved["telegram"]["links_pin_configured"] is True
+
+
+
+def test_telegram_connected_service_credentials_are_write_only(tmp_path):
+    store = ConfigStore(tmp_path / "settings.json")
+    secret = "gemini-secret-value"
+    public = store.update({"telegram": {
+        "gemini_api_key": secret,
+        "system_dashboard_password": "dashboard-password",
+        "odysseus_password": "odysseus-password",
+        "jellyfin_password": "jellyfin-password",
+        "uptime_kuma_password": "kuma-password",
+        "system_dashboard_username": "mat",
+        "gemini_base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "gemini_timeout": "90",
+        "ollama_base_url": "http://127.0.0.1:11434",
+        "ollama_timeout": "180",
+        "ollama_memory_model": "qwen3:0.6b",
+    }})
+    assert public["telegram"]["gemini_api_key_configured"] is True
+    assert public["telegram"]["system_dashboard_password_configured"] is True
+    assert secret not in str(public)
+    with pytest.raises(ConfigurationError):
+        store.update({"telegram": {"ollama_timeout": "0"}})
+    with pytest.raises(ConfigurationError):
+        store.update({"telegram": {"gemini_base_url": "javascript:alert(1)"}})
