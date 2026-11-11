@@ -85,6 +85,10 @@ def test_gateway_blocks_remote_access_unless_https_lan_mode_is_explicit(tmp_path
     client = make_gateway(tmp_path)
     denied = client.get("/nexusone/", environ_overrides={"REMOTE_ADDR": "192.168.1.50"})
     assert denied.status_code == 403
+    forwarded_denied = client.get("/nexusone/", environ_overrides={
+        "REMOTE_ADDR": "127.0.0.1", "HTTP_X_FORWARDED_FOR": "192.168.1.50"
+    })
+    assert forwarded_denied.status_code == 403
 
     secure_client = make_gateway(tmp_path, allow_lan=True)
     http_denied = secure_client.get("/nexusone/", environ_overrides={"REMOTE_ADDR": "192.168.1.50"})
