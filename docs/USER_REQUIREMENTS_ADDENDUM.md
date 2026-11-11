@@ -45,7 +45,8 @@ Provide fields for applicable values such as:
 - Bot token.
 - Authorized Telegram user IDs (add/remove multiple numeric IDs).
 - Optional chat/group IDs and integration-specific settings required by the existing bot.
-- Existing credential-reveal PIN setting, retaining the requested default/configuration value of `7171` only where that legacy workflow still requires it. It must not be treated as the sole authorization control.
+- Existing credential-reveal PIN setting, retaining the requested configuration value of `7171` only where that legacy workflow still requires it. It must not be treated as the sole authorization control.
+- Credentials used by the current bot for the system dashboard, Odysseus, Jellyfin, Uptime Kuma, Gemini, and Ollama settings.
 
 ### Discord settings
 
