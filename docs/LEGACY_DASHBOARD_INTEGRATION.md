@@ -12,7 +12,9 @@ This is the preferred migration path for the current stage: one listener, one br
 - Keeps non-HTML responses streaming, so large Explorer downloads are not buffered into memory by the gateway.
 - Shares the legacy dashboard's signed Flask session cookie and signing key. NexusOne still checks the live dashboard users database on each request.
 - Rewrites internal links and root-relative API fetches in NexusOne HTML so the pages remain inside the mounts.
-- Blocks non-loopback clients across both legacy and NexusOne routes by default. Requests carrying forwarded-client headers are also treated as remote, even when a local proxy makes `REMOTE_ADDR` look like loopback. If LAN access is explicitly enabled, the gateway requires the WSGI request scheme to be HTTPS and forces both the legacy and NexusOne shared session cookies to use the `Secure` attribute.
+- Blocks non-loopback clients across both legacy and NexusOne routes by default.
+- In LAN mode, accepts remote traffic only when it arrives from a loopback reverse proxy carrying both `X-Forwarded-For` and `X-Forwarded-Proto: https`. It normalizes the WSGI scheme to HTTPS before either Flask app processes the request. Direct connections to the backend are rejected, even if a client claims to use HTTPS.
+- Forces both the legacy and NexusOne shared session cookies to use the `Secure` attribute in LAN mode.
 - Does not change the dashboard's existing login or logout routes.
 
 ## Install procedure
@@ -57,7 +59,7 @@ This is the preferred migration path for the current stage: one listener, one br
    install_nexusone_gateway(app, {
        "DASHBOARD_AUTH_DB": str(DASHBOARD_AUTH_DB),
        "EXPLORER_ROOT": str(_SHARING_HOME),
-   })
+   }, allow_lan=False)
    ```
 
    The helper takes the existing Flask app's `secret_key` and session cookie
@@ -72,10 +74,19 @@ This is the preferred migration path for the current stage: one listener, one br
    general NexusOne overview link can be added with
    `<a href="/nexusone/">NexusOne</a>`.
 
-7. Only after reviewing the backup and syntax check, restart the dashboard
-   service during a maintenance window. The gateway defaults to loopback-only
-   access even if the underlying Flask server is bound to all interfaces.
-   NexusOne pages are available under `/nexusone/`.
+7. For local-only use, keep `NEXUSONE_ALLOW_LAN` unset. For phone/LAN use,
+   run the supplied setup script from the repository checkout:
+
+   ```bash
+   bash deploy/setup_lan_proxy.sh
+   ```
+
+   The script enables LAN mode, configures Caddy with an internal HTTPS
+   certificate, restricts the backend port, and restarts the existing
+   dashboard service. It does not replace the existing dashboard service.
+   Import the generated `nexusone-local-ca.crt` certificate on your phone
+   before opening the printed HTTPS address. See the script output for the
+   exact certificate location and URL.
 
 8. Verify login, logout, viewer/admin access, every legacy section tab, the
    embedded File Transfer and Integrations tabs, streamed downloads, and the
@@ -111,7 +122,7 @@ tests. New legacy endpoints must be classified before they are exposed.
 ## Security boundaries
 
 - Do not set `allow_lan=True` on the gateway for plain HTTP. The gateway rejects non-loopback requests to every legacy and NexusOne route unless LAN mode is explicitly enabled, and then rejects them unless the WSGI scheme is HTTPS.
-- If TLS is terminated by a reverse proxy, configure that proxy and WSGI server to convey the HTTPS scheme through a trusted mechanism, and restrict direct access to the WSGI listener. Do not trust arbitrary client-supplied forwarded-proto headers.
+- If TLS is terminated by Caddy, keep the WSGI listener on the same machine and allow forwarded HTTPS only from loopback. The gateway requires both a loopback peer and Caddy's forwarded-client/protocol headers. Do not expose port 7171 directly to the LAN.
 - Keep the existing Flask secret key private and stable during migration. Rotating it logs out existing dashboard sessions.
 - The web process must continue running as the normal desktop user, never root.
 - System-scope service actions remain status-only until a narrowly scoped polkit helper exists.
@@ -127,4 +138,4 @@ tabs, while the underlying NexusOne pages still retain their own visual template
 The remaining work is visual unification and capability-by-capability migration,
 not rebuilding the existing monitoring widgets from scratch.
 
-The first gateway tests exercise shared sessions, route isolation, CSRF, and the loopback/HTTPS boundary. They do not replace a workstation smoke test on the user's CachyOS installation.
+The gateway tests exercise shared sessions, route isolation, CSRF, fail-closed account lookup, streamed downloads, and the trusted-proxy boundary. They do not replace a workstation smoke test on the target CachyOS installation.
