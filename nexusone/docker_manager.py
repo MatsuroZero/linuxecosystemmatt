@@ -47,7 +47,10 @@ def project_status(compose_file: str | Path) -> dict:
             parsed = json.loads(output)
             rows = parsed if isinstance(parsed, list) else [parsed]
         except json.JSONDecodeError:
-            rows = [json.loads(line) for line in output.splitlines() if line.strip()]
+            try:
+                rows = [json.loads(line) for line in output.splitlines() if line.strip()]
+            except json.JSONDecodeError as exc:
+                raise RuntimeError("Docker Compose returned malformed status data") from exc
         containers = [_safe_container(row) for row in rows if isinstance(row, dict)]
     return {"project": "odysseus", "containers": containers, "count": len(containers)}
 
