@@ -75,7 +75,11 @@ def test_ui_shell_loads_serpantinum_matugen_json_palette(tmp_path):
         "MATUGEN_JSON_FILE": str(palette),
     })
 
-    response = app.test_client().get("/theme/matugen.css")
+    client = app.test_client()
+    with client.session_transaction() as state:
+        state.update(authenticated=True, username="marwan", role="admin")
+
+    response = client.get("/theme/matugen.css")
 
     assert response.status_code == 200
     assert b"--md-sys-color-primary:#ffb2bb" in response.data
