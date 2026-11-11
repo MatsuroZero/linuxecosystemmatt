@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
 
@@ -39,7 +39,7 @@ class AuditLog:
         outcome: str = "success", source_ip: str = "",
     ) -> None:
         values = (
-            datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            datetime.now(UTC).isoformat(timespec="seconds"),
             str(actor)[:128], str(action)[:128], str(target)[:255],
             str(outcome)[:40], str(source_ip)[:64],
         )
