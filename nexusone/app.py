@@ -93,8 +93,9 @@ nav{display:flex;gap:.6rem;flex-wrap:wrap}a{color:#c4b5fd;text-decoration:none}n
 .tile{display:block;min-height:130px}.tile strong{display:block;font-size:1.1rem;margin-bottom:.5rem}.muted{color:#9ca3af}
 </style>
 <header><div><h1>NexusOne</h1><p class="muted">Local workstation control center</p></div>
-<nav><a href="/">Overview</a><a href="/services">Services</a><a href="/explorer">Explorer</a>{% if is_admin %}<a href="/settings">Configuration</a>{% endif %}</nav></header>
+<nav><a href="/">Overview</a><a href="/services">Services</a><a href="/explorer">Explorer</a>{% if is_admin %}<a href="/activity">Activity</a><a href="/settings">Configuration</a>{% endif %}</nav></header>
 <div class="tiles">
+<a class="tile" href="/activity"><strong>🧾 Activity log</strong>Review recent configuration and privileged service actions. Secret values are never recorded.<p class="muted">Administrator only.</p></a>
 <a class="tile" href="/services"><strong>🔌 Services</strong>Inspect systemd service status; administrators can control approved user services.<p class="muted">System services are read-only until polkit integration.</p></a>
 <a class="tile" href="/explorer"><strong>📁 Explorer</strong>Upload files to your PC with chunked transfers and resume support.<p class="muted">Workspace: {{ explorer_root }}</p></a>
 {% if is_admin %}<a class="tile" href="/settings"><strong>⚙️ Configuration</strong>Manage Telegram and Discord credentials, IDs, and authorized users. Secrets remain write-only.</a>{% endif %}
@@ -103,6 +104,27 @@ nav{display:flex;gap:.6rem;flex-wrap:wrap}a{color:#c4b5fd;text-decoration:none}n
 </div>
 </html>"""
 
+
+
+
+_AUDIT_PAGE = """<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NexusOne · Activity</title>
+<style>
+:root{color-scheme:dark}body{font:15px system-ui;max-width:1100px;margin:2rem auto;padding:0 1rem;background:#111827;color:#e5e7eb}
+header{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}a{color:#c4b5fd;text-decoration:none}
+main{overflow:auto;background:#1f2937;border:1px solid #374151;border-radius:12px;padding:1rem;margin-top:1rem}
+button{padding:.6rem .9rem;background:#374151;color:white;border:0;border-radius:7px;cursor:pointer}
+table{width:100%;border-collapse:collapse;min-width:700px}td,th{text-align:left;padding:.65rem;border-bottom:1px solid #374151}
+.muted{color:#9ca3af}#status{white-space:pre-wrap;color:#c4b5fd}
+</style>
+<header><div><h1>🧾 Activity log</h1><p class="muted">Recent privileged configuration and service actions. Secret values are never recorded.</p></div><a href="/">← NexusOne</a></header>
+<button id="refresh">↻ Refresh</button><p id="status" role="status"></p>
+<main><table><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Outcome</th><th>Source</th></tr></thead><tbody id="events"></tbody></table></main>
+<script>
+async function load(){const status=document.getElementById("status");try{const r=await fetch("/api/audit?limit=100");if(!r.ok)throw Error((await r.text())||r.status);const data=await r.json(),body=document.getElementById("events");body.replaceChildren();for(const event of data.events){const row=document.createElement("tr");for(const key of ["created_at","actor","action","target","outcome","source_ip"]){const cell=document.createElement("td");cell.textContent=event[key]||"—";row.append(cell);}body.append(row);}status.textContent="Showing "+data.events.length+" recent events.";}catch(e){status.textContent="Activity log unavailable: "+e.message;}}
+document.getElementById("refresh").onclick=load;load();
+</script></html>"""
 
 
 _SERVICES_PAGE = """<!doctype html>
@@ -442,6 +464,11 @@ def create_app(config=None) -> Flask:
             is_admin=has_capability(role, Capability.SETTINGS_MANAGE),
             explorer_root=app.config["EXPLORER_ROOT"],
         )
+
+    @app.get("/activity")
+    def activity_page():
+        _role_required(Capability.SETTINGS_MANAGE)()
+        return render_template_string(_AUDIT_PAGE)
 
     @app.get("/services")
     def services_page():
