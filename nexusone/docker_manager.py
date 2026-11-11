@@ -62,7 +62,7 @@ def control_project(compose_file: str | Path, action: str) -> dict:
     if action == "start":
         argv += ["up", "-d"]
     elif action == "stop":
-        argv += ["down"]
+        argv += ["stop"]
     else:
         argv += ["restart"]
     result = _run(argv, timeout=120)
