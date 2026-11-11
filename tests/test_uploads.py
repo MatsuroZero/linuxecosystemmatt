@@ -43,3 +43,18 @@ def test_cancel_removes_staging_file(tmp_path):
     manager.cancel(upload_id)
     with pytest.raises(UploadError):
         manager.append(upload_id, 0, io.BytesIO(b"x"))
+
+
+
+def test_upload_session_survives_restart_and_is_user_scoped(tmp_path):
+    first = UploadManager(tmp_path, chunk_limit=4, min_free_bytes=0)
+    upload_id = first.start("backup.bin", "Phone", 8, owner="matty")["upload_id"]
+    first.append(upload_id, 0, io.BytesIO(b"abcd"), owner="matty")
+
+    restarted = UploadManager(tmp_path, chunk_limit=4, min_free_bytes=0)
+    with pytest.raises(UploadError):
+        restarted.status(upload_id, owner="someone-else")
+    assert restarted.status(upload_id, owner="matty")["offset"] == 4
+    restarted.append(upload_id, 4, io.BytesIO(b"efgh"), owner="matty")
+    restarted.finish(upload_id, owner="matty")
+    assert (tmp_path / "Phone" / "backup.bin").read_bytes() == b"abcdefgh"
