@@ -104,23 +104,22 @@ class NexusOneGateway:
             environ.get("HTTP_FORWARDED") or environ.get("HTTP_X_FORWARDED_FOR")
         )
         is_local_request = _is_loopback(str(remote or "")) and not has_forwarded_identity
-        if not is_local_request:
-            if not self.allow_lan:
-                body = b"NexusOne is available on this machine only."
-                start_response("403 Forbidden", [
-                    ("Content-Type", "text/plain; charset=utf-8"),
-                    ("Content-Length", str(len(body))),
-                    ("Cache-Control", "no-store"),
-                ])
-                return [body]
-            if scheme != "https":
-                body = b"HTTPS is required for LAN access to NexusOne."
-                start_response("403 Forbidden", [
-                    ("Content-Type", "text/plain; charset=utf-8"),
-                    ("Content-Length", str(len(body))),
-                    ("Cache-Control", "no-store"),
-                ])
-                return [body]
+        if self.allow_lan and scheme != "https":
+            body = b"HTTPS is required while LAN mode is enabled."
+            start_response("403 Forbidden", [
+                ("Content-Type", "text/plain; charset=utf-8"),
+                ("Content-Length", str(len(body))),
+                ("Cache-Control", "no-store"),
+            ])
+            return [body]
+        if not is_local_request and not self.allow_lan:
+            body = b"NexusOne is available on this machine only."
+            start_response("403 Forbidden", [
+                ("Content-Type", "text/plain; charset=utf-8"),
+                ("Content-Length", str(len(body))),
+                ("Cache-Control", "no-store"),
+            ])
+            return [body]
 
         mounted = self._mount(environ, prefix)
         if not ui:
