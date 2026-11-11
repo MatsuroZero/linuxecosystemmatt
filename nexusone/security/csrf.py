@@ -2,7 +2,7 @@
 
 import secrets
 from hmac import compare_digest
-from typing import MutableMapping
+from collections.abc import MutableMapping
 
 _SESSION_KEY = "_nexusone_csrf_token"
 
