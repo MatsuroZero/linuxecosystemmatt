@@ -34,7 +34,11 @@ def test_configuration_is_admin_only_and_secrets_are_write_only(tmp_path):
     body = response.get_json()
     assert body["telegram"]["bot_token_configured"] is True
     assert "do-not-return" not in str(body)
-    assert client.get("/settings").status_code == 200
+    settings_page = client.get("/settings")
+    assert settings_page.status_code == 200
+    assert b"Gemini API key" in settings_page.data
+    assert b"Uptime Kuma password" in settings_page.data
+    assert b"Authorized Discord user IDs" in settings_page.data
     assert b"Configuration" in client.get("/").data
 
 
