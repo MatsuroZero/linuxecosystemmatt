@@ -1,0 +1,7 @@
+https://{$NEXUSONE_HOST}:8443 {
+    tls internal
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:7171 {
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

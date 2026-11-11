@@ -106,3 +106,16 @@ def test_installer_rejects_symlinked_dashboard_source(tmp_path):
 
     with pytest.raises(ValueError, match="regular, non-symlink"):
         install_dashboard_gateway(link)
+
+
+
+def test_installer_reads_lan_mode_from_environment(tmp_path):
+    app = tmp_path / "app.py"
+    app.write_text(dashboard_source(), encoding="utf-8")
+
+    install_dashboard_gateway(app)
+
+    updated = app.read_text(encoding="utf-8")
+    compile(updated, str(app), "exec")
+    assert "NEXUSONE_ALLOW_LAN" in updated
+    assert "allow_lan=(" in updated

@@ -170,3 +170,24 @@ def test_legacy_security_bootstrap_javascript_parses_when_node_is_available(tmp_
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+
+def test_missing_account_database_fails_closed_for_non_reserved_user(tmp_path):
+    app = Flask("legacy-security-missing-db")
+    app.secret_key = "test-signing-key"
+
+    @app.get("/")
+    def dashboard():
+        return "dashboard"
+
+    install_legacy_security(
+        app,
+        auth_db_path=tmp_path / "missing-users.sqlite3",
+    )
+    client = app.test_client()
+    with client.session_transaction() as state:
+        state.update(authenticated=True, username="viewer-one", role="admin")
+
+    response = client.get("/")
+    assert response.status_code == 503

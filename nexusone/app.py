@@ -5,7 +5,7 @@ import secrets
 import sqlite3
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, render_template_string, request, session
+from flask import Flask, abort, g, jsonify, render_template_string, request, session
 
 from nexusone.audit import AuditLog
 from nexusone.config_store import ConfigStore, ConfigurationError
@@ -16,6 +16,7 @@ from nexusone.security.csrf import issue_csrf_token, verify_csrf_token
 from nexusone.security.rate_limit import RateLimiter
 from nexusone.security.rbac import Capability, has_capability
 from nexusone.service_manager import control_service, list_services
+from nexusone.ui_shell import install_ui_shell
 from nexusone.uploads import UploadError, UploadManager
 
 _MUTATING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
@@ -368,6 +369,12 @@ def _role_required(capability: Capability):
 def create_app(config=None) -> Flask:
     app = Flask(__name__)
     supplied = dict(config or {})
+    if (
+        os.environ.get("NEXUSONE_ENV", "development").strip().lower() == "production"
+        and not os.environ.get("NEXUSONE_SECRET_KEY", "").strip()
+    ):
+        raise RuntimeError("NEXUSONE_SECRET_KEY is required in production")
+
     secret = supplied.pop("SECRET_KEY", None) or os.environ.get("NEXUSONE_SECRET_KEY")
     if not secret:
         # Reuse the legacy dashboard key so its signed Flask login session can
@@ -395,7 +402,14 @@ def create_app(config=None) -> Flask:
         TELEGRAM_ENV_FILE=os.environ.get("NEXUSONE_TELEGRAM_ENV_FILE", str(config_dir / "telegram.env")),
         DISCORD_ENV_FILE=os.environ.get("NEXUSONE_DISCORD_ENV_FILE", str(config_dir / "discord.env")),
         AUDIT_FILE=os.environ.get("NEXUSONE_AUDIT_FILE", "~/.local/state/nexusone/audit.sqlite3"),
-        DASHBOARD_AUTH_DB=os.environ.get("NEXUSONE_DASHBOARD_AUTH_DB", "~/.local/share/system-dashboard/dashboard-users.sqlite3"),
+        DASHBOARD_AUTH_DB=(
+            supplied.get("DASHBOARD_AUTH_DB", "")
+            if supplied.get("TESTING")
+            else os.environ.get(
+                "NEXUSONE_DASHBOARD_AUTH_DB",
+                "~/.local/share/system-dashboard/dashboard-users.sqlite3",
+            )
+        ),
         SESSION_COOKIE_NAME="session", SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=(os.environ.get("NEXUSONE_COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes"}
                                if os.environ.get("NEXUSONE_COOKIE_SECURE") is not None
@@ -464,7 +478,14 @@ def create_app(config=None) -> Flask:
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "same-origin")
         response.headers.setdefault("Cache-Control", "no-store")
-        response.headers.setdefault("Content-Security-Policy", app.config["CONTENT_SECURITY_POLICY"])
+        nonce = getattr(g, "csp_nonce", None)
+        if nonce:
+            response.headers["Content-Security-Policy"] = (
+                app.config["CONTENT_SECURITY_POLICY"]
+                + f"; script-src 'self' 'nonce-{nonce}'; style-src 'self' 'nonce-{nonce}'"
+            )
+        else:
+            response.headers.setdefault("Content-Security-Policy", app.config["CONTENT_SECURITY_POLICY"])
         return response
 
     @app.errorhandler(413)
@@ -667,6 +688,7 @@ def create_app(config=None) -> Flask:
             request.args.get("limit", default=100, type=int) or 100
         ))
 
+    install_ui_shell(app)
     return app
 
 
