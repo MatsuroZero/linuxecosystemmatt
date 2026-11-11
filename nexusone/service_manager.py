@@ -23,6 +23,7 @@ SERVICES = (
     Service("ollama", "system", "ollama.service"),
     Service("localnexus", "user", "localnexus.service", True),
     Service("telegram-bot", "user", "telegram-control-bot.service", True),
+    Service("discord-activity", "user", "discord-control-activity.service", True),
     Service("dashboard", "system", "system-dashboard.service"),
     Service("dashboard-ydotool", "system", "system-dashboard-ydotool.service"),
     Service("sunshine", "user", "sunshine.service", True),
