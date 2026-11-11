@@ -5,7 +5,6 @@ import json
 import subprocess
 from pathlib import Path
 
-
 _ALLOWED_ACTIONS = {"start", "stop", "restart"}
 
 
