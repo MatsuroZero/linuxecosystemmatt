@@ -9,6 +9,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
+from urllib.parse import urlsplit
 from threading import RLock
 from typing import Any
 
@@ -107,7 +108,22 @@ class ConfigStore:
                             raise ConfigurationError("enabled must be boolean")
                         current[key] = value
                     elif isinstance(value, str) and len(value) <= 500:
-                        current[key] = value.strip()
+                        normalized = value.strip()
+                        if key in {"application_id", "client_id"} and normalized and (
+                            not normalized.isdigit() or len(normalized) > 24
+                        ):
+                            raise ConfigurationError(f"{key} must be a numeric Discord ID")
+                        if key == "activity_origin" and normalized:
+                            parsed = urlsplit(normalized)
+                            if (
+                                parsed.scheme != "https" or not parsed.hostname
+                                or parsed.username or parsed.password
+                                or parsed.path not in {"", "/"} or parsed.query or parsed.fragment
+                            ):
+                                raise ConfigurationError(
+                                    "activity_origin must be an HTTPS origin without path, query, or credentials"
+                                )
+                        current[key] = normalized
                     else:
                         raise ConfigurationError(f"{key} must be text up to 500 characters")
             self._write(data)
