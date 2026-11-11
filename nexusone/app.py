@@ -285,14 +285,17 @@ def create_app(config=None) -> Flask:
         _role_required(Capability.EXPLORER_WRITE)()
         data = request.get_json(silent=False) or {}
         result = app.extensions["nexusone_uploads"].start(
-            data.get("filename"), data.get("destination", ""), data.get("size")
+            data.get("filename"), data.get("destination", ""), data.get("size"),
+            owner=str(session.get("username", "")),
         )
         return jsonify(result), 201
 
     @app.get("/api/explorer/uploads/<upload_id>")
     def upload_status(upload_id):
         _role_required(Capability.EXPLORER_READ)()
-        return jsonify(app.extensions["nexusone_uploads"].status(upload_id))
+        return jsonify(app.extensions["nexusone_uploads"].status(
+            upload_id, owner=str(session.get("username", ""))
+        ))
 
     @app.put("/api/explorer/uploads/<upload_id>")
     def upload_chunk(upload_id):
@@ -301,19 +304,23 @@ def create_app(config=None) -> Flask:
         if offset is None:
             abort(400, description="An upload offset is required")
         result = app.extensions["nexusone_uploads"].append(
-            upload_id, offset, request.stream
+            upload_id, offset, request.stream, owner=str(session.get("username", ""))
         )
         return jsonify(result)
 
     @app.post("/api/explorer/uploads/<upload_id>/finish")
     def upload_finish(upload_id):
         _role_required(Capability.EXPLORER_WRITE)()
-        return jsonify(app.extensions["nexusone_uploads"].finish(upload_id))
+        return jsonify(app.extensions["nexusone_uploads"].finish(
+            upload_id, owner=str(session.get("username", ""))
+        ))
 
     @app.delete("/api/explorer/uploads/<upload_id>")
     def upload_cancel(upload_id):
         _role_required(Capability.EXPLORER_WRITE)()
-        app.extensions["nexusone_uploads"].cancel(upload_id)
+        app.extensions["nexusone_uploads"].cancel(
+            upload_id, owner=str(session.get("username", ""))
+        )
         return jsonify(ok=True)
 
     return app
