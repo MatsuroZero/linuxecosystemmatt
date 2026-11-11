@@ -1,8 +1,8 @@
 """Session-bound CSRF token helpers."""
 
 import secrets
-from hmac import compare_digest
 from collections.abc import MutableMapping
+from hmac import compare_digest
 
 _SESSION_KEY = "_nexusone_csrf_token"
 
