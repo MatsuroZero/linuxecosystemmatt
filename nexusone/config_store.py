@@ -57,7 +57,10 @@ class ConfigStore:
         self._lock = RLock()
 
     @staticmethod
-    def _validate_url(value: str, field: str, origin_only: bool, allow_local_http: bool) -> None:
+    def _validate_url(
+        value: str, field: str, origin_only: bool,
+        allow_local_http: bool = False, allow_http: bool = False,
+    ) -> None:
         try:
             parsed = urlsplit(value)
             hostname = parsed.hostname
@@ -66,7 +69,7 @@ class ConfigStore:
             raise ConfigurationError(f"{field} is not a valid URL") from exc
         local_http = parsed.scheme == "http" and hostname in {"localhost", "127.0.0.1", "::1"}
         if (
-            (parsed.scheme != "https" and not (allow_local_http and local_http))
+            (parsed.scheme != "https" and not (allow_http or (allow_local_http and local_http)))
             or not hostname or (port is not None and not 1 <= port <= 65535)
             or parsed.username or parsed.password or parsed.query or parsed.fragment
             or (origin_only and parsed.path not in {"", "/"})
@@ -146,10 +149,12 @@ class ConfigStore:
                                 raise ConfigurationError(f"{key} contains invalid characters or is too long")
                             if value.strip():
                                 normalized = value.strip()
-                                if key == "links_pin" and (
+                                if integration == "telegram" and key == "links_pin" and (
                                     not normalized.isdigit() or not 4 <= len(normalized) <= 12
                                 ):
-                                    raise ConfigurationError("links_pin must contain 4 to 12 digits")
+                                    raise ConfigurationError("Telegram links_pin must contain 4 to 12 digits")
+                                if integration == "discord" and key == "links_pin" and len(normalized) < 6:
+                                    raise ConfigurationError("Discord links_pin must contain at least 6 characters")
                                 current[key] = normalized
                         else:
                             raise ConfigurationError(f"{key} must be text")
@@ -192,6 +197,12 @@ class ConfigStore:
                             self._validate_url(normalized, key, origin_only=True, allow_local_http=False)
                         if key == "redirect_uri" and normalized:
                             self._validate_url(normalized, key, origin_only=False, allow_local_http=True)
+                        if key in {
+                            "system_dashboard_url", "odysseus_url", "jellyfin_url",
+                            "uptime_kuma_url", "system_dashboard_health_url",
+                            "jellyfin_health_url", "ollama_health_url", "uptime_kuma_health_url",
+                        } and normalized:
+                            self._validate_url(normalized, key, origin_only=False, allow_http=True)
                         if key == "allowed_origins" and normalized:
                             origins = [item.strip() for item in normalized.split(",") if item.strip()]
                             if not origins:
