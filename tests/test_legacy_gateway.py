@@ -107,3 +107,36 @@ def test_install_helper_requires_live_auth_db_and_secures_lan_cookie(tmp_path):
     }, allow_lan=True)
     assert nexusone.config["SESSION_COOKIE_SECURE"] is True
     assert nexusone.config["SESSION_COOKIE_NAME"] == "session"
+
+
+def test_gateway_does_not_buffer_binary_downloads():
+    consumed = []
+
+    def legacy_wsgi(environ, start_response):
+        start_response("404 Not Found", [("Content-Type", "text/plain")])
+        return [b"legacy"]
+
+    def nexus_wsgi(environ, start_response):
+        start_response("200 OK", [("Content-Type", "application/octet-stream")])
+
+        def stream():
+            consumed.append(True)
+            yield b"file-chunk"
+
+        return stream()
+
+    gateway = NexusOneGateway(legacy_wsgi, nexus_wsgi)
+    environ = {
+        "PATH_INFO": "/nexusone/download",
+        "SCRIPT_NAME": "",
+        "REMOTE_ADDR": "127.0.0.1",
+        "wsgi.url_scheme": "http",
+    }
+    response = {}
+    result = gateway(environ, lambda status, headers: response.update(
+        status=status, headers=headers
+    ))
+    assert response["status"] == "200 OK"
+    assert consumed == []
+    assert b"".join(result) == b"file-chunk"
+    assert consumed == [True]
