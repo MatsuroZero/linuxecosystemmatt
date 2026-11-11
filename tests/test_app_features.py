@@ -49,6 +49,8 @@ def test_explorer_upload_requires_role_and_supports_chunks(tmp_path):
                        headers={"X-CSRF-Token": csrf}, data=io.BytesIO(b"abcd"),
                        content_type="application/octet-stream")
     assert first.json == {"offset": 4, "complete": False}
+    progress = client.get(f"/api/explorer/uploads/{upload_id}")
+    assert progress.json["offset"] == 4
     second = client.put(f"/api/explorer/uploads/{upload_id}?offset=4",
                         headers={"X-CSRF-Token": csrf}, data=io.BytesIO(b"ef"),
                         content_type="application/octet-stream")
