@@ -30,21 +30,21 @@ small{color:#9ca3af}#status{white-space:pre-wrap}
 <section><h2>Telegram</h2>
 <label><input type="checkbox" id="tg_enabled"> Enabled</label>
 <label>Bot token <input type="password" id="tg_token" autocomplete="new-password" placeholder="Leave blank to keep the saved token"></label>
-<small id="tg_token_state"></small>
+<small id="tg_token_state"></small><label><input type="checkbox" id="tg_clear_token"> Clear saved token</label>
 <label>Authorized Telegram user IDs, one per line</label><textarea id="tg_users" rows="3"></textarea>
 <label>Chat/group IDs, one per line</label><textarea id="tg_chats" rows="2"></textarea>
-<label>Credential reveal PIN <input type="password" id="tg_pin" autocomplete="new-password" placeholder="Leave blank to keep current"></label>
+<label>Credential reveal PIN <input type="password" id="tg_pin" autocomplete="new-password" placeholder="Leave blank to keep current"></label><label><input type="checkbox" id="tg_clear_pin"> Clear saved PIN</label>
 </section>
 <section><h2>Discord</h2>
 <label><input type="checkbox" id="dc_enabled"> Enabled</label>
 <label>Bot token <input type="password" id="dc_token" autocomplete="new-password" placeholder="Leave blank to keep the saved token"></label>
-<small id="dc_token_state"></small>
+<small id="dc_token_state"></small><label><input type="checkbox" id="dc_clear_token"> Clear saved token</label>
 <label>Application ID <input id="dc_app"></label>
 <label>Client ID <input id="dc_client"></label>
 <label>Client secret <input type="password" id="dc_secret" autocomplete="new-password" placeholder="Leave blank to keep current"></label>
-<small id="dc_secret_state"></small>
+<small id="dc_secret_state"></small><label><input type="checkbox" id="dc_clear_secret"> Clear saved client secret</label>
 <label>Bridge secret <input type="password" id="dc_bridge" autocomplete="new-password" placeholder="Leave blank to keep current"></label>
-<small id="dc_bridge_state"></small>
+<small id="dc_bridge_state"></small><label><input type="checkbox" id="dc_clear_bridge"> Clear saved bridge secret</label>
 <label>Guild/server IDs, one per line</label><textarea id="dc_guilds" rows="2"></textarea>
 <label>Authorized Discord user IDs, one per line</label><textarea id="dc_users" rows="3"></textarea>
 <label>Channel IDs, one per line</label><textarea id="dc_channels" rows="2"></textarea>
@@ -69,11 +69,11 @@ async function load(){
  for(const [id,key] of [["dc_token_state","bot_token"],["dc_secret_state","client_secret"],["dc_bridge_state","bridge_secret"]]) byId(id).textContent=c[key+"_configured"]?"Configured":"Not configured";
 }
 byId("settings").addEventListener("submit",async e=>{
- e.preventDefault(); const payload={telegram:{enabled:byId("tg_enabled").checked,authorized_user_ids:lines("tg_users"),chat_ids:lines("tg_chats"),bot_token:byId("tg_token").value,links_pin:byId("tg_pin").value},
- discord:{enabled:byId("dc_enabled").checked,authorized_user_ids:lines("dc_users"),guild_ids:lines("dc_guilds"),channel_ids:lines("dc_channels"),application_id:byId("dc_app").value,client_id:byId("dc_client").value,activity_origin:byId("dc_origin").value,bot_token:byId("dc_token").value,client_secret:byId("dc_secret").value,bridge_secret:byId("dc_bridge").value}};
+ e.preventDefault(); const payload={telegram:{enabled:byId("tg_enabled").checked,authorized_user_ids:lines("tg_users"),chat_ids:lines("tg_chats"),bot_token:byId("tg_clear_token").checked?null:byId("tg_token").value,links_pin:byId("tg_clear_pin").checked?null:byId("tg_pin").value},
+ discord:{enabled:byId("dc_enabled").checked,authorized_user_ids:lines("dc_users"),guild_ids:lines("dc_guilds"),channel_ids:lines("dc_channels"),application_id:byId("dc_app").value,client_id:byId("dc_client").value,activity_origin:byId("dc_origin").value,bot_token:byId("dc_clear_token").checked?null:byId("dc_token").value,client_secret:byId("dc_clear_secret").checked?null:byId("dc_secret").value,bridge_secret:byId("dc_clear_bridge").checked?null:byId("dc_bridge").value}};
  const r=await api("/api/config",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
  byId("status").textContent=r.ok?"Saved. Integration processes may need restarting.":("Save failed: "+(await r.text()));
- if(r.ok){for(const id of ["tg_token","tg_pin","dc_token","dc_secret","dc_bridge"])byId(id).value="";await load();}
+ if(r.ok){for(const id of ["tg_token","tg_pin","dc_token","dc_secret","dc_bridge"])byId(id).value="";for(const id of ["tg_clear_token","tg_clear_pin","dc_clear_token","dc_clear_secret","dc_clear_bridge"])byId(id).checked=false;await load();}
 });
 load().catch(e=>byId("status").textContent="Configuration unavailable: "+e.message);
 </script></html>"""
