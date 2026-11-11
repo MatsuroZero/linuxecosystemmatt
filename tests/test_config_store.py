@@ -93,6 +93,8 @@ def test_telegram_connected_service_credentials_are_write_only(tmp_path):
         "ollama_memory_model": "qwen3:0.6b",
     }})
     assert public["telegram"]["gemini_api_key_configured"] is True
+    runtime = store.runtime_integration("telegram")
+    assert runtime["gemini_api_key"] == secret
     assert public["telegram"]["system_dashboard_password_configured"] is True
     assert secret not in str(public)
     with pytest.raises(ConfigurationError):
