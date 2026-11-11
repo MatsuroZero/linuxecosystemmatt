@@ -144,6 +144,11 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
             if target.exists():
                 return jsonify(ok=False, error="A file or folder with that name already exists"), 409
             source.rename(target)
+            with clipboard_lock:
+                if clipboard:
+                    updated = [relative(target) if safe_path(raw) == source else relative(safe_path(raw))
+                               for raw in clip_paths(clipboard)]
+                    clipboard = {"paths": updated, "mode": clipboard.get("mode"), "count": len(updated)} if updated else None
             return jsonify(ok=True, path=relative(target))
         except (OSError, ValueError) as exc:
             return jsonify(ok=False, error=str(exc)), 400
@@ -253,7 +258,7 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
             plans, conflicts = [], []
             for source in sources:
                 target = safe_path(relative(destination / source.name))
-                if target == source or source in destination.parents:
+                if target == source or source == destination or source in destination.parents:
                     return jsonify(ok=False, error="Cannot paste a folder into itself"), 400
                 if target.exists():
                     conflicts.append({"name": source.name, "path": relative(target), "mode": current.get("mode")})
