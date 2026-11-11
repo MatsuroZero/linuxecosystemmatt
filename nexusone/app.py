@@ -5,7 +5,7 @@ import secrets
 import sqlite3
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, render_template_string, request, session
+from flask import Flask, abort, g, jsonify, render_template_string, request, session
 
 from nexusone.audit import AuditLog
 from nexusone.config_store import ConfigStore, ConfigurationError
@@ -465,7 +465,14 @@ def create_app(config=None) -> Flask:
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "same-origin")
         response.headers.setdefault("Cache-Control", "no-store")
-        response.headers.setdefault("Content-Security-Policy", app.config["CONTENT_SECURITY_POLICY"])
+        nonce = getattr(g, "csp_nonce", None)
+        if nonce:
+            response.headers["Content-Security-Policy"] = (
+                app.config["CONTENT_SECURITY_POLICY"]
+                + f"; script-src 'self' 'nonce-{nonce}'; style-src 'self' 'nonce-{nonce}'"
+            )
+        else:
+            response.headers.setdefault("Content-Security-Policy", app.config["CONTENT_SECURITY_POLICY"])
         return response
 
     @app.errorhandler(413)
