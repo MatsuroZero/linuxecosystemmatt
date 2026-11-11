@@ -248,7 +248,7 @@ async function loadFiles(path=currentPath){
  try{const data=await api("/api/files?path="+encodeURIComponent(path));currentPath=data.path;parentPath=data.parent;entries=data.entries||[];clipboard=data.clipboard||null;selected.clear();render();setStatus("");}
  catch(error){setStatus("Explorer error: "+error.message);}
 }
-function download(path){window.location.href="/api/files/download?path="+encodeURIComponent(path);}
+function download(path){const apiPrefix=window.location.pathname.startsWith("/nexusone/")?"/nexusone-api":"";window.location.href=apiPrefix+"/api/files/download?path="+encodeURIComponent(path);}
 function selectedPaths(){return [...selected];}
 async function renameItem(item){const name=prompt("Rename:",item.name);if(name===null||!name.trim())return;try{await api("/api/files/rename",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:item.path,name:name.trim()})});await loadFiles();}catch(e){setStatus("Rename failed: "+e.message);}}
 byId("up").onclick=()=>{if(parentPath!==null)loadFiles(parentPath);};
