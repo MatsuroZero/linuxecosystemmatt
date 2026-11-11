@@ -12,7 +12,7 @@ This is the preferred migration path for the current stage: one listener, one br
 - Keeps non-HTML responses streaming, so large Explorer downloads are not buffered into memory by the gateway.
 - Shares the legacy dashboard's signed Flask session cookie and signing key. NexusOne still checks the live dashboard users database on each request.
 - Rewrites internal links and root-relative API fetches in NexusOne HTML so the pages remain inside the mounts.
-- Blocks non-loopback clients by default. Requests carrying forwarded-client headers are also treated as remote, even when a local proxy makes `REMOTE_ADDR` look like loopback. If LAN access is explicitly enabled, the gateway requires the WSGI request scheme to be HTTPS and forces the NexusOne session cookie to use the `Secure` attribute.
+- Blocks non-loopback clients across both legacy and NexusOne routes by default. Requests carrying forwarded-client headers are also treated as remote, even when a local proxy makes `REMOTE_ADDR` look like loopback. If LAN access is explicitly enabled, the gateway requires the WSGI request scheme to be HTTPS and forces both the legacy and NexusOne shared session cookies to use the `Secure` attribute.
 - Does not change the dashboard's existing login or logout routes.
 
 ## Install procedure
@@ -72,7 +72,7 @@ tests. New legacy endpoints must be classified before they are exposed.
 
 ## Security boundaries
 
-- Do not set `allow_lan=True` on the gateway for plain HTTP. The gateway rejects non-loopback requests unless LAN mode is explicitly enabled, and then rejects them unless the WSGI scheme is HTTPS.
+- Do not set `allow_lan=True` on the gateway for plain HTTP. The gateway rejects non-loopback requests to every legacy and NexusOne route unless LAN mode is explicitly enabled, and then rejects them unless the WSGI scheme is HTTPS.
 - If TLS is terminated by a reverse proxy, configure that proxy and WSGI server to convey the HTTPS scheme through a trusted mechanism, and restrict direct access to the WSGI listener. Do not trust arbitrary client-supplied forwarded-proto headers.
 - Keep the existing Flask secret key private and stable during migration. Rotating it logs out existing dashboard sessions.
 - The web process must continue running as the normal desktop user, never root.
