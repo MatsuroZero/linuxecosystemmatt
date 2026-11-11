@@ -9,8 +9,8 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from urllib.parse import urlsplit
 from threading import RLock
+from urllib.parse import urlsplit
 from typing import Any
 
 _SECRET_FIELDS = {
