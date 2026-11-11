@@ -10,8 +10,8 @@ import os
 import tempfile
 from pathlib import Path
 from threading import RLock
-from urllib.parse import urlsplit
 from typing import Any
+from urllib.parse import urlsplit
 
 _SECRET_FIELDS = {
     "telegram": {"bot_token", "links_pin"},
