@@ -27,7 +27,7 @@ There is no arbitrary total-file-size cap in the upload manager. Available disk 
 
 The default server address is `127.0.0.1:7171`. That is intentionally not reachable from a phone.
 
-Phone transfers require explicitly enabling LAN mode and binding to the PC's LAN interface. Do not expose the development server directly to the internet. Before enabling LAN mode, integrate the existing login flow, use HTTPS with a certificate trusted by the phone, restrict the host firewall to the trusted local network, and configure allowed origins. Secure session cookies remain enabled by default.
+Phone transfers require explicitly enabling LAN mode and binding to the PC's LAN interface. Do not expose the development server directly to the internet. Before enabling LAN mode, integrate the existing login flow, use HTTPS with a certificate trusted by the phone, restrict the host firewall to the trusted local network, and configure allowed origins. Secure session cookies are enabled by default when LAN mode is enabled; localhost development defaults to non-Secure cookies so the local HTTP dashboard can work. LAN mode must use HTTPS.
 
 ## Integration Configuration
 
@@ -37,6 +37,6 @@ The admin-only page is served at `/settings`; API endpoints are `GET /api/config
 - Blank secret fields preserve existing values. Separate clear checkboxes deliberately remove a stored secret.
 - Configuration is written atomically outside the repository, with directory mode 0700 and file mode 0600.
 - Configuration changes are not yet wired to restart or reconfigure the legacy bot processes. That work belongs to the integration-adapter phase.
-- The current foundation app does not yet contain the migrated production login flow. Until that is integrated, these routes are not a usable standalone deployment; they fail closed unless the session already carries the required role.
+- The foundation app does not create its own login accounts. During staged migration it can validate the existing dashboard Flask session: by default it reads `~/.config/system-dashboard/secret_key`, uses the standard `session` cookie name, and maps the legacy `user` role to the `viewer` capability set. It fails closed when no authenticated session is present. The old dashboard and NexusOne cannot both bind port 7171 simultaneously; deployment must integrate them behind one listener or migrate the dashboard routes before switching services.
 
 The credentials file is protected by filesystem permissions, not application-level encryption. The operating-system account and disk security remain part of the trust boundary. Never commit the configuration file or copy secrets into issue reports or logs.
