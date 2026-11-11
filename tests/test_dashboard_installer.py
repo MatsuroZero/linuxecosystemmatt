@@ -65,7 +65,7 @@ def test_installer_refuses_duplicate_or_ambiguous_source(tmp_path):
 def test_installer_requires_expected_dashboard_variables(tmp_path):
     app = tmp_path / "app.py"
     app.write_text(
-        'app = object()\nif __name__ == "__main__":\n    pass\n',
+        'app = Flask(__name__)\nif __name__ == "__main__":\n    pass\n',
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="auth DB or sharing-root"):
