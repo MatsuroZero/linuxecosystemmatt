@@ -59,6 +59,7 @@ def test_gateway_keeps_legacy_routes_and_mounts_nexusone_same_origin(tmp_path):
     assert page.status_code == 200
     assert b'href="/nexusone/' in page.data
     assert b'/nexusone-api' in page.data
+    assert b'window.location.pathname.startsWith("/nexusone/")' in page.data
 
     files = client.get("/nexusone-api/api/files")
     assert files.status_code == 200
