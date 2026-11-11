@@ -92,14 +92,42 @@ nav{display:flex;gap:.6rem;flex-wrap:wrap}a{color:#c4b5fd;text-decoration:none}n
 .tile{display:block;min-height:130px}.tile strong{display:block;font-size:1.1rem;margin-bottom:.5rem}.muted{color:#9ca3af}
 </style>
 <header><div><h1>NexusOne</h1><p class="muted">Local workstation control center</p></div>
-<nav><a href="/">Overview</a><a href="/explorer">Explorer</a>{% if is_admin %}<a href="/settings">Configuration</a>{% endif %}</nav></header>
+<nav><a href="/">Overview</a><a href="/services">Services</a><a href="/explorer">Explorer</a>{% if is_admin %}<a href="/settings">Configuration</a>{% endif %}</nav></header>
 <div class="tiles">
+<a class="tile" href="/services"><strong>🔌 Services</strong>Inspect systemd service status; administrators can control approved user services.<p class="muted">System services are read-only until polkit integration.</p></a>
 <a class="tile" href="/explorer"><strong>📁 Explorer</strong>Upload files to your PC with chunked transfers and resume support.<p class="muted">Workspace: {{ explorer_root }}</p></a>
 {% if is_admin %}<a class="tile" href="/settings"><strong>⚙️ Configuration</strong>Manage Telegram and Discord credentials, IDs, and authorized users. Secrets remain write-only.</a>{% endif %}
 <div class="tile"><strong>🛡️ Security</strong>Authenticated sessions, role checks, CSRF protection, request limits, and audit-ready APIs.<p class="muted">Localhost-first · Port 7171</p></div>
 <div class="tile"><strong>🔌 Integrations</strong>Telegram and Discord settings are scaffolded. Process reload and live connectivity checks are part of the integration phase.</div>
 </div>
 </html>"""
+
+
+
+_SERVICES_PAGE = """<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NexusOne · Services</title>
+<style>
+:root{color-scheme:dark}body{font:15px system-ui;max-width:1100px;margin:2rem auto;padding:0 1rem;background:#111827;color:#e5e7eb}
+header{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}a{color:#c4b5fd;text-decoration:none}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1rem;margin-top:1rem}
+article{background:#1f2937;border:1px solid #374151;border-radius:12px;padding:1rem}
+.muted{color:#9ca3af}.state{font-weight:700}.active{color:#86efac}.inactive{color:#fca5a5}
+button{border:0;border-radius:7px;padding:.55rem .8rem;background:#374151;color:white;cursor:pointer;margin:.2rem}
+button:disabled{opacity:.45;cursor:not-allowed}.primary{background:#7c3aed}.status{white-space:pre-wrap;color:#c4b5fd}
+</style>
+<header><div><h1>🔌 Services</h1><p class="muted">Allowlisted systemd services on this workstation.</p></div><nav><a href="/">← NexusOne overview</a></nav></header>
+<p class="status" id="status" role="status"></p><button id="refresh">↻ Refresh status</button>
+<div class="grid" id="services">Loading…</div>
+<script>
+const isAdmin={{ "true" if is_admin else "false" }};
+let csrf="";
+async function api(url,options={}){const r=await fetch(url,{...options,headers:{...(options.headers||{}),"X-CSRF-Token":csrf}});let d={};try{d=await r.json()}catch{}if(!r.ok)throw Error(d.error||("HTTP "+r.status));return d;}
+function actionButton(service,action){const b=document.createElement("button");b.textContent=action[0].toUpperCase()+action.slice(1);b.disabled=!isAdmin||!service.controllable;b.onclick=async()=>{if((action==="stop"||action==="restart")&&!confirm(action+" "+service.name+"?"))return;b.disabled=true;try{await api("/api/services/"+encodeURIComponent(service.name)+"/"+action,{method:"POST"});await load();}catch(e){document.getElementById("status").textContent=e.message;b.disabled=false;}};return b;}
+async function load(){try{const data=await api("/api/services");const root=document.getElementById("services");root.replaceChildren();for(const service of data.services){const card=document.createElement("article"),title=document.createElement("h2"),state=document.createElement("p"),meta=document.createElement("p"),controls=document.createElement("div");title.textContent=service.name;state.className="state "+(service.active==="active"?"active":"inactive");state.textContent="● "+service.active;meta.className="muted";meta.textContent=service.scope+" · "+service.unit+" · autostart: "+service.enabled;for(const action of ["start","stop","restart"])controls.append(actionButton(service,action));if(!service.controllable){const note=document.createElement("p");note.className="muted";note.textContent="Status only. System-level control requires a dedicated polkit helper.";card.append(title,state,meta,note,controls);}else card.append(title,state,meta,controls);root.append(card);}document.getElementById("status").textContent="Updated."; }catch(e){document.getElementById("status").textContent=e.message;}}
+async function init(){const r=await fetch("/api/security/csrf");if(!r.ok)throw Error("Authentication required");csrf=(await r.json()).token;await load();}
+document.getElementById("refresh").onclick=load;init().catch(e=>document.getElementById("status").textContent=e.message);
+</script></html>"""
 
 
 _EXPLORER_PAGE = """<!doctype html>
@@ -410,6 +438,17 @@ def create_app(config=None) -> Flask:
             _HOME_PAGE,
             is_admin=has_capability(role, Capability.SETTINGS_MANAGE),
             explorer_root=app.config["EXPLORER_ROOT"],
+        )
+
+    @app.get("/services")
+    def services_page():
+        _role_required(Capability.DASHBOARD_READ)()
+        role = session.get("role")
+        if role == "user":
+            role = "viewer"
+        return render_template_string(
+            _SERVICES_PAGE,
+            is_admin=has_capability(role, Capability.SERVICES_CONTROL),
         )
 
     @app.get("/explorer")
