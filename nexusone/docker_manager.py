@@ -1,4 +1,5 @@
 """Fixed-project Docker Compose adapter. No user-supplied command or project path is accepted."""
+
 from __future__ import annotations
 
 import json
