@@ -161,7 +161,7 @@ def install_legacy_security(
         # The existing dashboard's login hook runs before this hook. Re-check
         # the live account role so stale cookies cannot retain admin controls.
         if not session.get("authenticated"):
-            return None
+            return
 
         role = _refresh_legacy_role(auth_db)
         username = str(session.get("username", "")).strip()
