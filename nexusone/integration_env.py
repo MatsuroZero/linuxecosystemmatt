@@ -80,7 +80,7 @@ def render_discord_environment(
     telegram_settings: dict[str, Any], discord_settings: dict[str, Any]
 ) -> str:
     """Render only the environment variables used by the audited Discord Activity."""
-    values: dict[str, str] = {"HOST": "127.0.0.1", "PORT": str(discord_settings.get("port") or "8787")}
+    values: dict[str, str] = {"HOST": "127.0.0.1", "PORT": str(discord_settings.get("port") or "8787"), "REQUEST_RATE_LIMIT": "180"}
 
     def add(target: dict[str, str], env_name: str, settings: dict[str, Any], config_name: str) -> None:
         value = settings.get(config_name)
