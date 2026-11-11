@@ -135,3 +135,34 @@ def test_activity_log_is_admin_only_and_never_records_secret_values(tmp_path):
     assert audit.status_code == 200
     assert audit.json["events"][0]["action"] == "configuration.update"
     assert secret not in str(audit.json)
+
+
+
+def test_docker_project_controls_are_admin_only_and_audited(tmp_path, monkeypatch):
+    import nexusone.app as nexus_app
+
+    monkeypatch.setattr(nexus_app, "project_status", lambda path: {
+        "project": "odysseus", "count": 1, "containers": [{"Name": "searxng", "State": "running"}]
+    })
+    calls = []
+    monkeypatch.setattr(nexus_app, "control_project", lambda path, action: (
+        calls.append(action) or {"project": "odysseus", "action": action, "message": "ok"}
+    ))
+    app = create_app({
+        "TESTING": True, "SECRET_KEY": "test-secret", "SESSION_COOKIE_SECURE": False,
+        "AUDIT_FILE": str(tmp_path / "audit.sqlite3"),
+    })
+    viewer = app.test_client()
+    with viewer.session_transaction() as state:
+        state.update(authenticated=True, username="viewer", role="user")
+    assert viewer.get("/api/docker/projects").status_code == 200
+    csrf = viewer.get("/api/security/csrf").json["token"]
+    assert viewer.post("/api/docker/projects/odysseus/stop",
+                       headers={"X-CSRF-Token": csrf}).status_code == 403
+
+    admin, headers = admin_client(app)
+    response = admin.post("/api/docker/projects/odysseus/stop", headers=headers)
+    assert response.status_code == 200
+    assert calls == ["stop"]
+    events = admin.get("/api/audit").json["events"]
+    assert events[0]["action"] == "docker.stop"
