@@ -40,6 +40,21 @@ small{color:#9ca3af}#status{white-space:pre-wrap}
 <label>Chat/group IDs, one per line</label><textarea id="tg_chats" rows="2"></textarea>
 <label>Credential reveal PIN <input type="password" id="tg_pin" autocomplete="new-password" placeholder="Leave blank to keep current"></label><label><input type="checkbox" id="tg_clear_pin"> Clear saved PIN</label>
 </section>
+<section><h2>Connected services & AI</h2>
+<p><small>These are the credentials and endpoints used by the existing Telegram bot. Secret values remain write-only.</small></p>
+<label>System dashboard username <input id="tg_sys_user"></label>
+<label>System dashboard password <input type="password" id="tg_sys_pass" autocomplete="new-password"></label><small id="tg_sys_pass_state"></small><label><input type="checkbox" id="tg_clear_sys_pass"> Clear saved password</label>
+<label>Odysseus username <input id="tg_ody_user"></label>
+<label>Odysseus password <input type="password" id="tg_ody_pass" autocomplete="new-password"></label><small id="tg_ody_pass_state"></small><label><input type="checkbox" id="tg_clear_ody_pass"> Clear saved password</label>
+<label>Jellyfin username <input id="tg_jelly_user"></label>
+<label>Jellyfin password <input type="password" id="tg_jelly_pass" autocomplete="new-password"></label><small id="tg_jelly_pass_state"></small><label><input type="checkbox" id="tg_clear_jelly_pass"> Clear saved password</label>
+<label>Uptime Kuma username <input id="tg_kuma_user"></label>
+<label>Uptime Kuma password <input type="password" id="tg_kuma_pass" autocomplete="new-password"></label><small id="tg_kuma_pass_state"></small><label><input type="checkbox" id="tg_clear_kuma_pass"> Clear saved password</label>
+<label>Gemini API key <input type="password" id="tg_gemini_key" autocomplete="new-password"></label><small id="tg_gemini_key_state"></small><label><input type="checkbox" id="tg_clear_gemini_key"> Clear saved API key</label>
+<label>Gemini base URL <input id="tg_gemini_url"></label><label>Gemini timeout (seconds) <input id="tg_gemini_timeout" type="number" min="1" max="3600"></label>
+<label>Ollama base URL <input id="tg_ollama_url"></label><label>Ollama timeout (seconds) <input id="tg_ollama_timeout" type="number" min="1" max="3600"></label>
+<label>Ollama memory model <input id="tg_ollama_model"></label><label>Ollama memory path <input id="tg_ollama_path"></label>
+</section>
 <section><h2>Discord</h2>
 <label><input type="checkbox" id="dc_enabled"> Enabled</label>
 <label>Bot token <input type="password" id="dc_token" autocomplete="new-password" placeholder="Leave blank to keep the saved token"></label>
@@ -68,17 +83,21 @@ async function load(){
  const d=await r.json(),t=d.telegram||{},c=d.discord||{};
  byId("tg_enabled").checked=!!t.enabled; byId("tg_users").value=(t.authorized_user_ids||[]).join("\\n");
  byId("tg_chats").value=(t.chat_ids||[]).join("\\n"); byId("tg_token_state").textContent=t.bot_token_configured?"Token configured":"No token configured";
+ for(const [id,key] of [["tg_sys_user","system_dashboard_username"],["tg_ody_user","odysseus_username"],["tg_jelly_user","jellyfin_username"],["tg_kuma_user","uptime_kuma_username"],["tg_gemini_url","gemini_base_url"],["tg_gemini_timeout","gemini_timeout"],["tg_ollama_url","ollama_base_url"],["tg_ollama_timeout","ollama_timeout"],["tg_ollama_model","ollama_memory_model"],["tg_ollama_path","ollama_memory_path"]]) byId(id).value=t[key]||"";
+ for(const [id,key] of [["tg_sys_pass_state","system_dashboard_password"],["tg_ody_pass_state","odysseus_password"],["tg_jelly_pass_state","jellyfin_password"],["tg_kuma_pass_state","uptime_kuma_password"],["tg_gemini_key_state","gemini_api_key"]]) byId(id).textContent=t[key+"_configured"]?"Configured":"Not configured";
  byId("dc_enabled").checked=!!c.enabled; byId("dc_app").value=c.application_id||""; byId("dc_client").value=c.client_id||"";
  byId("dc_guilds").value=(c.guild_ids||[]).join("\\n"); byId("dc_users").value=(c.authorized_user_ids||[]).join("\\n");
  byId("dc_channels").value=(c.channel_ids||[]).join("\\n"); byId("dc_origin").value=c.activity_origin||"";
  for(const [id,key] of [["dc_token_state","bot_token"],["dc_secret_state","client_secret"],["dc_bridge_state","bridge_secret"]]) byId(id).textContent=c[key+"_configured"]?"Configured":"Not configured";
 }
 byId("settings").addEventListener("submit",async e=>{
- e.preventDefault(); const payload={telegram:{enabled:byId("tg_enabled").checked,authorized_user_ids:lines("tg_users"),chat_ids:lines("tg_chats"),bot_token:byId("tg_clear_token").checked?null:byId("tg_token").value,links_pin:byId("tg_clear_pin").checked?null:byId("tg_pin").value},
- discord:{enabled:byId("dc_enabled").checked,authorized_user_ids:lines("dc_users"),guild_ids:lines("dc_guilds"),channel_ids:lines("dc_channels"),application_id:byId("dc_app").value,client_id:byId("dc_client").value,activity_origin:byId("dc_origin").value,bot_token:byId("dc_clear_token").checked?null:byId("dc_token").value,client_secret:byId("dc_clear_secret").checked?null:byId("dc_secret").value,bridge_secret:byId("dc_clear_bridge").checked?null:byId("dc_bridge").value}};
+ e.preventDefault(); const telegram={enabled:byId("tg_enabled").checked,authorized_user_ids:lines("tg_users"),chat_ids:lines("tg_chats"),bot_token:byId("tg_clear_token").checked?null:byId("tg_token").value,links_pin:byId("tg_clear_pin").checked?null:byId("tg_pin").value};
+ for(const [id,key] of [["tg_sys_user","system_dashboard_username"],["tg_ody_user","odysseus_username"],["tg_jelly_user","jellyfin_username"],["tg_kuma_user","uptime_kuma_username"],["tg_gemini_url","gemini_base_url"],["tg_gemini_timeout","gemini_timeout"],["tg_ollama_url","ollama_base_url"],["tg_ollama_timeout","ollama_timeout"],["tg_ollama_model","ollama_memory_model"],["tg_ollama_path","ollama_memory_path"]]) telegram[key]=byId(id).value;
+ for(const [id,key,clearId] of [["tg_sys_pass","system_dashboard_password","tg_clear_sys_pass"],["tg_ody_pass","odysseus_password","tg_clear_ody_pass"],["tg_jelly_pass","jellyfin_password","tg_clear_jelly_pass"],["tg_kuma_pass","uptime_kuma_password","tg_clear_kuma_pass"],["tg_gemini_key","gemini_api_key","tg_clear_gemini_key"]]) telegram[key]=byId(clearId).checked?null:byId(id).value;
+ const payload={telegram,discord:{enabled:byId("dc_enabled").checked,authorized_user_ids:lines("dc_users"),guild_ids:lines("dc_guilds"),channel_ids:lines("dc_channels"),application_id:byId("dc_app").value,client_id:byId("dc_client").value,activity_origin:byId("dc_origin").value,bot_token:byId("dc_clear_token").checked?null:byId("dc_token").value,client_secret:byId("dc_clear_secret").checked?null:byId("dc_secret").value,bridge_secret:byId("dc_clear_bridge").checked?null:byId("dc_bridge").value}};
  const r=await api("/api/config",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
  byId("status").textContent=r.ok?"Saved. Integration processes may need restarting.":("Save failed: "+(await r.text()));
- if(r.ok){for(const id of ["tg_token","tg_pin","dc_token","dc_secret","dc_bridge"])byId(id).value="";for(const id of ["tg_clear_token","tg_clear_pin","dc_clear_token","dc_clear_secret","dc_clear_bridge"])byId(id).checked=false;await load();}
+ if(r.ok){for(const id of ["tg_token","tg_pin","tg_sys_pass","tg_ody_pass","tg_jelly_pass","tg_kuma_pass","tg_gemini_key","dc_token","dc_secret","dc_bridge"])byId(id).value="";for(const id of ["tg_clear_token","tg_clear_pin","tg_clear_sys_pass","tg_clear_ody_pass","tg_clear_jelly_pass","tg_clear_kuma_pass","tg_clear_gemini_key","dc_clear_token","dc_clear_secret","dc_clear_bridge"])byId(id).checked=false;await load();}
 });
 load().catch(e=>byId("status").textContent="Configuration unavailable: "+e.message);
 </script></html>"""
