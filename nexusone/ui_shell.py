@@ -5,9 +5,10 @@ from __future__ import annotations
 import html
 import json
 import os
-from pathlib import Path
 import re
 import secrets
+
+from pathlib import Path
 
 from flask import Response, g, request, session
 
