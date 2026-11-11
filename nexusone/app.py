@@ -7,6 +7,7 @@ from pathlib import Path
 from flask import Flask, abort, jsonify, render_template_string, request, session
 
 from nexusone.config_store import ConfigStore, ConfigurationError
+from nexusone.explorer import create_explorer_blueprint
 from nexusone.security.csrf import issue_csrf_token, verify_csrf_token
 from nexusone.security.rate_limit import RateLimiter
 from nexusone.security.rbac import Capability, has_capability
@@ -89,9 +90,9 @@ nav{display:flex;gap:.6rem;flex-wrap:wrap}a{color:#c4b5fd;text-decoration:none}n
 .tile{display:block;min-height:130px}.tile strong{display:block;font-size:1.1rem;margin-bottom:.5rem}.muted{color:#9ca3af}
 </style>
 <header><div><h1>NexusOne</h1><p class="muted">Local workstation control center</p></div>
-<nav><a href="/">Overview</a><a href="/explorer/uploads">Explorer</a>{% if is_admin %}<a href="/settings">Configuration</a>{% endif %}</nav></header>
+<nav><a href="/">Overview</a><a href="/explorer">Explorer</a>{% if is_admin %}<a href="/settings">Configuration</a>{% endif %}</nav></header>
 <div class="tiles">
-<a class="tile" href="/explorer/uploads"><strong>📁 Explorer</strong>Upload files to your PC with chunked transfers and resume support.<p class="muted">Workspace: {{ explorer_root }}</p></a>
+<a class="tile" href="/explorer"><strong>📁 Explorer</strong>Upload files to your PC with chunked transfers and resume support.<p class="muted">Workspace: {{ explorer_root }}</p></a>
 {% if is_admin %}<a class="tile" href="/settings"><strong>⚙️ Configuration</strong>Manage Telegram and Discord credentials, IDs, and authorized users. Secrets remain write-only.</a>{% endif %}
 <div class="tile"><strong>🛡️ Security</strong>Authenticated sessions, role checks, CSRF protection, request limits, and audit-ready APIs.<p class="muted">Localhost-first · Port 7171</p></div>
 <div class="tile"><strong>🔌 Integrations</strong>Telegram and Discord settings are scaffolded. Process reload and live connectivity checks are part of the integration phase.</div>
@@ -222,6 +223,7 @@ def create_app(config=None) -> Flask:
         app.config["EXPLORER_ROOT"], chunk_limit=int(app.config["UPLOAD_CHUNK_BYTES"]),
         max_active=int(app.config["UPLOAD_MAX_ACTIVE"]),
     )
+    app.register_blueprint(create_explorer_blueprint(app.config["EXPLORER_ROOT"]))
 
     @app.before_request
     def enforce_request_security():
