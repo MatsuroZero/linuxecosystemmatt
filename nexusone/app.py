@@ -9,6 +9,7 @@ from flask import Flask, abort, jsonify, render_template_string, request, sessio
 
 from nexusone.audit import AuditLog
 from nexusone.config_store import ConfigStore, ConfigurationError
+from nexusone.docker_manager import control_project, project_status
 from nexusone.explorer import create_explorer_blueprint
 from nexusone.security.csrf import issue_csrf_token, verify_csrf_token
 from nexusone.security.rate_limit import RateLimiter
@@ -354,6 +355,7 @@ def create_app(config=None) -> Flask:
         SECRET_KEY=secret, MAX_CONTENT_LENGTH=None, MAX_REQUEST_BYTES=2 * 1024 * 1024,
         UPLOAD_CHUNK_BYTES=8 * 1024 * 1024, UPLOAD_MAX_ACTIVE=3,
         EXPLORER_ROOT=os.environ.get("NEXUSONE_EXPLORER_ROOT", "~/"),
+        ODYSSEUS_COMPOSE_FILE=os.environ.get("NEXUSONE_ODYSSEUS_COMPOSE_FILE", "~/Projects/odysseus/docker-compose.yml"),
         CONFIG_FILE=str(config_dir / "integrations.json"),
         AUDIT_FILE=os.environ.get("NEXUSONE_AUDIT_FILE", "~/.local/state/nexusone/audit.sqlite3"),
         DASHBOARD_AUTH_DB=os.environ.get("NEXUSONE_DASHBOARD_AUTH_DB", "~/.local/share/system-dashboard/dashboard-users.sqlite3"),
@@ -558,6 +560,30 @@ def create_app(config=None) -> Flask:
     def get_services():
         _role_required(Capability.DASHBOARD_READ)()
         return jsonify(services=list_services())
+
+    @app.get("/api/docker/projects")
+    def get_docker_projects():
+        _role_required(Capability.DASHBOARD_READ)()
+        try:
+            return jsonify(project=project_status(app.config["ODYSSEUS_COMPOSE_FILE"]))
+        except RuntimeError as error:
+            return jsonify(error=str(error)), 502
+
+    @app.post("/api/docker/projects/odysseus/<action>")
+    def post_docker_project_action(action):
+        _role_required(Capability.CONTAINERS_CONTROL)()
+        actor = str(session.get("username", ""))
+        audit = app.extensions["nexusone_audit"]
+        try:
+            result = control_project(app.config["ODYSSEUS_COMPOSE_FILE"], action)
+        except ValueError as error:
+            audit.record(actor, "docker." + action, "odysseus", "invalid", request.remote_addr or "")
+            return jsonify(error=str(error)), 400
+        except RuntimeError as error:
+            audit.record(actor, "docker." + action, "odysseus", "failed", request.remote_addr or "")
+            return jsonify(error=str(error)), 502
+        audit.record(actor, "docker." + action, "odysseus", source_ip=request.remote_addr or "")
+        return jsonify(ok=True, **result)
 
     @app.post("/api/services/<name>/<action>")
     def post_service_action(name, action):
