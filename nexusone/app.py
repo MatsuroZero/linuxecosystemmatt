@@ -7,6 +7,7 @@ from pathlib import Path
 
 from flask import Flask, abort, jsonify, render_template_string, request, session
 
+from nexusone.audit import AuditLog
 from nexusone.config_store import ConfigStore, ConfigurationError
 from nexusone.explorer import create_explorer_blueprint
 from nexusone.security.csrf import issue_csrf_token, verify_csrf_token
@@ -332,6 +333,7 @@ def create_app(config=None) -> Flask:
         UPLOAD_CHUNK_BYTES=8 * 1024 * 1024, UPLOAD_MAX_ACTIVE=3,
         EXPLORER_ROOT=os.environ.get("NEXUSONE_EXPLORER_ROOT", "~/"),
         CONFIG_FILE=str(config_dir / "integrations.json"),
+        AUDIT_FILE=os.environ.get("NEXUSONE_AUDIT_FILE", "~/.local/state/nexusone/audit.sqlite3"),
         DASHBOARD_AUTH_DB=os.environ.get("NEXUSONE_DASHBOARD_AUTH_DB", "~/.local/share/system-dashboard/dashboard-users.sqlite3"),
         SESSION_COOKIE_NAME="session", SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=(os.environ.get("NEXUSONE_COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes"}
@@ -343,6 +345,7 @@ def create_app(config=None) -> Flask:
     app.config.update(supplied)
     limiter = RateLimiter(int(app.config["RATE_LIMIT"]), float(app.config["RATE_WINDOW_SECONDS"]))
     app.extensions["nexusone_config"] = ConfigStore(app.config["CONFIG_FILE"])
+    app.extensions["nexusone_audit"] = AuditLog(app.config["AUDIT_FILE"])
     app.extensions["nexusone_uploads"] = UploadManager(
         app.config["EXPLORER_ROOT"], chunk_limit=int(app.config["UPLOAD_CHUNK_BYTES"]),
         max_active=int(app.config["UPLOAD_MAX_ACTIVE"]),
@@ -475,6 +478,10 @@ def create_app(config=None) -> Flask:
     def put_config():
         _role_required(Capability.SETTINGS_MANAGE)()
         result = app.extensions["nexusone_config"].update(request.get_json(silent=False))
+        app.extensions["nexusone_audit"].record(
+            str(session.get("username", "")), "configuration.update", "telegram,discord",
+            source_ip=request.remote_addr or "",
+        )
         return jsonify(result)
 
     @app.post("/api/explorer/uploads")
@@ -528,15 +535,28 @@ def create_app(config=None) -> Flask:
     @app.post("/api/services/<name>/<action>")
     def post_service_action(name, action):
         _role_required(Capability.SERVICES_CONTROL)()
+        actor = str(session.get("username", ""))
+        audit = app.extensions["nexusone_audit"]
         try:
             result = control_service(name, action)
         except PermissionError as error:
+            audit.record(actor, "service." + action, name, "denied", request.remote_addr or "")
             return jsonify(error=str(error)), 403
         except ValueError as error:
+            audit.record(actor, "service." + action, name, "invalid", request.remote_addr or "")
             return jsonify(error=str(error)), 400
         except RuntimeError as error:
+            audit.record(actor, "service." + action, name, "failed", request.remote_addr or "")
             return jsonify(error=str(error)), 502
+        audit.record(actor, "service." + action, name, source_ip=request.remote_addr or "")
         return jsonify(ok=True, **result)
+
+    @app.get("/api/audit")
+    def get_audit():
+        _role_required(Capability.SETTINGS_MANAGE)()
+        return jsonify(events=app.extensions["nexusone_audit"].recent(
+            request.args.get("limit", default=100, type=int) or 100
+        ))
 
     return app
 
