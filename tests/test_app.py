@@ -17,6 +17,8 @@ def test_mutations_require_session_csrf_token():
     app = create_app({"TESTING": True, "SECRET_KEY": "test-secret", "SESSION_COOKIE_SECURE": False})
     app.add_url_rule("/api/test-mutation", "test_mutation", lambda: {"ok": True}, methods=["POST"])
     client = app.test_client()
+    with client.session_transaction() as state:
+        state.update(authenticated=True, username="tester", role="user")
     assert client.post("/api/test-mutation").status_code == 403
     token = client.get("/api/security/csrf").json["token"]
     assert client.post("/api/test-mutation", headers={"X-CSRF-Token": token}).status_code == 200
@@ -26,6 +28,8 @@ def test_untrusted_origin_is_rejected():
     app = create_app({"TESTING": True, "SECRET_KEY": "test-secret", "SESSION_COOKIE_SECURE": False})
     app.add_url_rule("/api/test-mutation", "test_mutation", lambda: {"ok": True}, methods=["POST"])
     client = app.test_client()
+    with client.session_transaction() as state:
+        state.update(authenticated=True, username="tester", role="user")
     token = client.get("/api/security/csrf").json["token"]
     response = client.post("/api/test-mutation", headers={
         "X-CSRF-Token": token, "Origin": "https://attacker.example"
