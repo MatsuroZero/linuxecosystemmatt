@@ -9,9 +9,10 @@ This is the preferred migration path for the current stage: one listener, one br
 - Leaves all existing dashboard routes in place. Legacy requests are passed to the original WSGI application unchanged.
 - Mounts NexusOne pages at `/nexusone/`.
 - Mounts NexusOne API endpoints at `/nexusone-api/`. The Explorer API therefore does not collide with the legacy dashboard's existing `/api/files` routes.
+- Keeps non-HTML responses streaming, so large Explorer downloads are not buffered into memory by the gateway.
 - Shares the legacy dashboard's signed Flask session cookie and signing key. NexusOne still checks the live dashboard users database on each request.
 - Rewrites internal links and root-relative API fetches in NexusOne HTML so the pages remain inside the mounts.
-- Blocks non-loopback clients by default. If LAN access is explicitly enabled, the gateway requires the WSGI request scheme to be HTTPS.
+- Blocks non-loopback clients by default. If LAN access is explicitly enabled, the gateway requires the WSGI request scheme to be HTTPS and forces the NexusOne session cookie to use the `Secure` attribute.
 - Does not change the dashboard's existing login or logout routes.
 
 ## Install procedure
