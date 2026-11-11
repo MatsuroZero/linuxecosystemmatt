@@ -184,19 +184,59 @@ def install_ui_shell(app) -> None:
 
     @app.get("/theme/matugen.css")
     def matugen_stylesheet():
-        configured = os.environ.get("NEXUSONE_MATUGEN_CSS") or app.config.get("MATUGEN_CSS_FILE")
-        candidates = [Path(configured).expanduser()] if configured else [
-            Path("~/.config/matugen/colors.css").expanduser(),
-            Path("~/.cache/matugen/colors.css").expanduser(),
+        headers = {"Cache-Control": "no-store"}
+        css_path = os.environ.get("NEXUSONE_MATUGEN_CSS") or app.config.get("MATUGEN_CSS_FILE")
+        if css_path:
+            try:
+                path = Path(css_path).expanduser()
+                if path.is_file() and path.stat().st_size <= 512 * 1024:
+                    return Response(path.read_text(encoding="utf-8"), mimetype="text/css", headers=headers)
+            except (OSError, UnicodeError):
+                pass
+
+        json_path = os.environ.get("NEXUSONE_MATUGEN_JSON") or app.config.get("MATUGEN_JSON_FILE")
+        candidates = [Path(json_path).expanduser()] if json_path else [
+            Path.home() / ".local/state/serpantinum/qs_colors.json",
+            Path.home() / ".local/state/serpantinum/qs_matugen_colors.json",
+            Path.home() / ".config/hypr/scripts/quickshell/qs_colors.json",
+            Path.home() / ".config/serpantinum/qs_colors.json",
+            Path.home() / ".config/qs_colors.json",
         ]
         for path in candidates:
             try:
-                if path.is_file() and path.stat().st_size <= 512 * 1024:
-                    return Response(path.read_text(encoding="utf-8"), mimetype="text/css",
-                                    headers={"Cache-Control": "no-store"})
-            except (OSError, UnicodeError):
+                if not path.is_file() or path.stat().st_size > 512 * 1024:
+                    continue
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                colors = raw.get("colors", raw) if isinstance(raw, dict) else {}
+                if not isinstance(colors, dict):
+                    continue
+                valid = {
+                    key: value for key, value in colors.items()
+                    if isinstance(key, str) and isinstance(value, str)
+                    and re.fullmatch(r"#[0-9a-fA-F]{6}", value)
+                }
+                if not valid:
+                    continue
+                palette = {
+                    "--md-sys-color-primary": valid.get("mauve", valid.get("blue", "#c5b5f5")),
+                    "--md-sys-color-on-primary": valid.get("base", "#30264a"),
+                    "--md-sys-color-primary-container": valid.get("sapphire", valid.get("surface2", "#493f62")),
+                    "--md-sys-color-on-primary-container": valid.get("text", "#eadfff"),
+                    "--md-sys-color-background": valid.get("base", "#141318"),
+                    "--md-sys-color-surface": valid.get("mantle", valid.get("base", "#141318")),
+                    "--md-sys-color-surface-container": valid.get("surface0", "#201f25"),
+                    "--md-sys-color-surface-container-high": valid.get("surface1", "#2b2930"),
+                    "--md-sys-color-surface-container-low": valid.get("crust", "#201f25"),
+                    "--md-sys-color-on-surface": valid.get("text", "#e7e1e9"),
+                    "--md-sys-color-on-surface-variant": valid.get("subtext0", "#c9c3d0"),
+                    "--md-sys-color-outline": valid.get("subtext1", "#938d9a"),
+                    "--md-sys-color-error": valid.get("red", "#f2b8b5"),
+                }
+                declarations = ";".join(f"{key}:{value}" for key, value in palette.items())
+                return Response(f":root{{{declarations}}}\n", mimetype="text/css", headers=headers)
+            except (OSError, UnicodeError, json.JSONDecodeError):
                 continue
-        return Response(":root{}\n", mimetype="text/css", headers={"Cache-Control": "no-store"})
+        return Response(":root{}\n", mimetype="text/css", headers=headers)
 
     @app.after_request
     def apply_ui_shell(response):
