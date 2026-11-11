@@ -51,6 +51,18 @@ See [the audit report](docs/AUDIT.md) and [the architecture plan](docs/ARCHITECT
 
 ## Development
 
-The first implementation slice will establish the shared security primitives and tests. Existing services remain the source of truth until each migration step has passed its tests and a manual smoke test on the target workstation.
+The first implementation slice establishes shared security primitives and tests. Existing services remain the source of truth until each migration step has passed its tests and a manual smoke test on the target workstation.
+
+## Local development
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+python -m pytest
+python -m nexusone.app
+```
+
+The web app binds to `127.0.0.1` by default. Production requires `NEXUSONE_SECRET_KEY`. Do not enable LAN binding until HTTPS, authentication, firewall rules, and the integration origin allowlist have been configured.
 
 Never run the web process as root. Use narrowly scoped system permissions only where a specific adapter requires them.
