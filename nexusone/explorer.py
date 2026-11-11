@@ -14,8 +14,23 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
     bp = Blueprint("explorer_api", __name__)
     file_root = Path(root).expanduser().resolve()
     file_root.mkdir(parents=True, exist_ok=True)
-    clipboard: dict | None = None
+    clipboards: dict[str, dict] = {}
     clipboard_lock = RLock()
+
+    def current_user() -> str:
+        return str(session.get("username", ""))
+
+    def get_clipboard() -> dict | None:
+        with clipboard_lock:
+            value = clipboards.get(current_user())
+            return dict(value) if value else None
+
+    def save_clipboard(value: dict | None) -> None:
+        with clipboard_lock:
+            if value:
+                clipboards[current_user()] = dict(value)
+            else:
+                clipboards.pop(current_user(), None)
 
     def require(capability: Capability) -> None:
         role = session.get("role")
@@ -98,8 +113,7 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
                     continue
             entries.sort(key=lambda item: (item["type"] != "directory", item["name"].lower()))
             parent = None if directory == file_root else relative(directory.parent)
-            with clipboard_lock:
-                current_clipboard = dict(clipboard) if clipboard else None
+            current_clipboard = get_clipboard()
             return jsonify(
                 ok=True, root=str(file_root), path=relative(directory),
                 parent=parent, entries=entries, clipboard=current_clipboard,
@@ -138,7 +152,6 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
     @bp.post("/api/files/rename")
     def rename_file():
         require(Capability.EXPLORER_WRITE)
-        nonlocal clipboard
         try:
             payload = request.get_json(silent=True) or {}
             source = safe_path(payload.get("path", ""))
@@ -149,11 +162,11 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
             if target.exists():
                 return jsonify(ok=False, error="A file or folder with that name already exists"), 409
             source.rename(target)
-            with clipboard_lock:
-                if clipboard:
-                    updated = [relative(target) if safe_path(raw) == source else relative(safe_path(raw))
-                               for raw in clip_paths(clipboard)]
-                    clipboard = {"paths": updated, "mode": clipboard.get("mode"), "count": len(updated)} if updated else None
+            clip = get_clipboard()
+            if clip:
+                updated = [relative(target) if safe_path(raw) == source else relative(safe_path(raw))
+                           for raw in clip_paths(clip)]
+                save_clipboard({"paths": updated, "mode": clip.get("mode"), "count": len(updated)} if updated else None)
             return jsonify(ok=True, path=relative(target))
         except (OSError, ValueError) as exc:
             return jsonify(ok=False, error=str(exc)), 400
@@ -183,22 +196,22 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
                     shutil.rmtree(path)
                 elif path.exists():
                     path.unlink()
-            with clipboard_lock:
-                if clipboard:
-                    remaining = []
-                    for raw in clip_paths(clipboard):
-                        try:
-                            candidate = safe_path(raw)
-                        except ValueError:
-                            continue
-                        if any(candidate == deleted or deleted in candidate.parents for deleted in unique_paths):
-                            continue
-                        remaining.append(relative(candidate))
-                    clipboard = (
-                        {"paths": remaining, "mode": clipboard.get("mode"), "count": len(remaining)}
-                        if remaining else None
-                    )
-                current_clipboard = dict(clipboard) if clipboard else None
+            clip = get_clipboard()
+            if clip:
+                remaining = []
+                for raw in clip_paths(clip):
+                    try:
+                        candidate = safe_path(raw)
+                    except ValueError:
+                        continue
+                    if any(candidate == deleted or deleted in candidate.parents for deleted in unique_paths):
+                        continue
+                    remaining.append(relative(candidate))
+                save_clipboard(
+                    {"paths": remaining, "mode": clip.get("mode"), "count": len(remaining)}
+                    if remaining else None
+                )
+            current_clipboard = get_clipboard()
             return jsonify(ok=True, clipboard=current_clipboard)
         except (OSError, ValueError) as exc:
             return jsonify(ok=False, error=str(exc)), 400
@@ -225,9 +238,8 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
                 rel = relative(path)
                 if rel not in paths:
                     paths.append(rel)
-            with clipboard_lock:
-                clipboard = {"paths": paths, "mode": mode, "count": len(paths)}
-                result = dict(clipboard)
+            result = {"paths": paths, "mode": mode, "count": len(paths)}
+            save_clipboard(result)
             return jsonify(ok=True, clipboard=result, **result)
         except (OSError, ValueError) as exc:
             return jsonify(ok=False, error=str(exc)), 400
@@ -244,8 +256,7 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
                 return jsonify(ok=False, error="Destination is not a directory"), 400
             if conflict_action not in {"ask", "replace", "rename"}:
                 return jsonify(ok=False, error="Invalid conflict action"), 400
-            with clipboard_lock:
-                current = dict(clipboard) if clipboard else None
+            current = get_clipboard()
             if not current:
                 return jsonify(ok=False, error="Clipboard is empty"), 400
             sources = []
@@ -257,8 +268,7 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
                 else:
                     sources.append(source)
             if missing:
-                with clipboard_lock:
-                    clipboard = None
+                save_clipboard(None)
                 return jsonify(ok=False, error="Clipboard source no longer exists", missing=missing), 404
             plans, conflicts = [], []
             for source in sources:
@@ -294,10 +304,8 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
                     return jsonify(ok=False, error="Invalid clipboard mode"), 400
                 results.append(relative(target))
             if mode == "cut":
-                with clipboard_lock:
-                    clipboard = None
-            with clipboard_lock:
-                current_clipboard = dict(clipboard) if clipboard else None
+                save_clipboard(None)
+            current_clipboard = get_clipboard()
             return jsonify(ok=True, paths=results, count=len(results), mode=mode, clipboard=current_clipboard)
         except (OSError, ValueError, shutil.Error) as exc:
             return jsonify(ok=False, error=str(exc)), 400
