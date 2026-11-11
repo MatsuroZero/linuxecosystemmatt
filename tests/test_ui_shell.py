@@ -56,3 +56,28 @@ def test_ui_shell_hides_admin_navigation_for_viewers():
     assert b'name="n1-shell-config"' in page.data
     assert b'&quot;href&quot;: &quot;/settings&quot;' not in page.data
     assert b'&quot;href&quot;: &quot;/activity&quot;' not in page.data
+
+
+
+def test_ui_shell_loads_serpantinum_matugen_json_palette(tmp_path):
+    palette = tmp_path / "qs_colors.json"
+    palette.write_text(
+        '{"base":"#140c0d","mantle":"#22191a","text":"#f0dedf",'
+        '"subtext0":"#d7c1c3","subtext1":"#9f8c8e","surface0":"#261d1e",'
+        '"surface1":"#312828","surface2":"#3d3233","blue":"#ffb2bb",'
+        '"sapphire":"#72333d","mauve":"#ffb2bb","red":"#ffb4ab"}',
+        encoding="utf-8",
+    )
+    app = create_app({
+        "TESTING": True,
+        "SECRET_KEY": "test-secret",
+        "SESSION_COOKIE_SECURE": False,
+        "MATUGEN_JSON_FILE": str(palette),
+    })
+
+    response = app.test_client().get("/theme/matugen.css")
+
+    assert response.status_code == 200
+    assert b"--md-sys-color-primary:#ffb2bb" in response.data
+    assert b"--md-sys-color-background:#140c0d" in response.data
+    assert b"--md-sys-color-on-surface:#f0dedf" in response.data
