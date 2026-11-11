@@ -198,7 +198,7 @@ def create_app(config=None) -> Flask:
         return jsonify(result), 201
 
     @app.put("/api/explorer/uploads/<upload_id>")
-    def upload_chunk():
+    def upload_chunk(upload_id):
         _role_required(Capability.EXPLORER_WRITE)()
         offset = request.args.get("offset", type=int)
         if offset is None:
