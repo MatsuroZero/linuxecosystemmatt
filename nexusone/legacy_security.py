@@ -122,20 +122,21 @@ def _refresh_legacy_role(auth_db: Path) -> str | None:
         session["role"] = "admin"
         return "admin"
 
-    if auth_db.is_file():
-        try:
-            uri = auth_db.resolve().as_uri() + "?mode=ro"
-            with sqlite3.connect(uri, uri=True, timeout=2) as db:
-                row = db.execute(
-                    "SELECT role FROM users WHERE lower(username)=lower(?)",
-                    (username,),
-                ).fetchone()
-        except sqlite3.Error:
-            abort(503, description="Account authorization is temporarily unavailable")
-        if row is None:
-            session.clear()
-            abort(401, description="Account is no longer active")
-        session["role"] = str(row[0])
+    if not auth_db.is_file():
+        abort(503, description="Account authorization is temporarily unavailable")
+    try:
+        uri = auth_db.resolve().as_uri() + "?mode=ro"
+        with sqlite3.connect(uri, uri=True, timeout=2) as db:
+            row = db.execute(
+                "SELECT role FROM users WHERE lower(username)=lower(?)",
+                (username,),
+            ).fetchone()
+    except sqlite3.Error:
+        abort(503, description="Account authorization is temporarily unavailable")
+    if row is None:
+        session.clear()
+        abort(401, description="Account is no longer active")
+    session["role"] = str(row[0])
     role = session.get("role")
     return role if isinstance(role, str) else None
 
