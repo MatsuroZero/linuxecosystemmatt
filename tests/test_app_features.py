@@ -39,9 +39,9 @@ def test_explorer_upload_requires_role_and_supports_chunks(tmp_path):
         "EXPLORER_ROOT": str(tmp_path / "home"), "UPLOAD_CHUNK_BYTES": 4,
     })
     client = app.test_client()
-    csrf = client.get("/api/security/csrf").json["token"]
-    assert client.post("/api/explorer/uploads", headers={"X-CSRF-Token": csrf},
-                       json={"filename": "x.bin", "destination": "", "size": 6}).status_code == 401
+    assert client.post("/api/explorer/uploads", json={
+        "filename": "x.bin", "destination": "", "size": 6
+    }).status_code == 401
     with client.session_transaction() as state:
         state.update(authenticated=True, username="viewer", role="user")
     csrf = client.get("/api/security/csrf").json["token"]
