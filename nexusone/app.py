@@ -11,7 +11,7 @@ from nexusone.audit import AuditLog
 from nexusone.config_store import ConfigStore, ConfigurationError
 from nexusone.docker_manager import control_project, project_status
 from nexusone.explorer import create_explorer_blueprint
-from nexusone.integration_env import write_telegram_environment
+from nexusone.integration_env import write_discord_environment, write_telegram_environment
 from nexusone.security.csrf import issue_csrf_token, verify_csrf_token
 from nexusone.security.rate_limit import RateLimiter
 from nexusone.security.rbac import Capability, has_capability
@@ -97,7 +97,7 @@ byId("settings").addEventListener("submit",async e=>{
  for(const [id,key,clearId] of [["tg_sys_pass","system_dashboard_password","tg_clear_sys_pass"],["tg_ody_pass","odysseus_password","tg_clear_ody_pass"],["tg_jelly_pass","jellyfin_password","tg_clear_jelly_pass"],["tg_kuma_pass","uptime_kuma_password","tg_clear_kuma_pass"],["tg_gemini_key","gemini_api_key","tg_clear_gemini_key"]]) telegram[key]=byId(clearId).checked?null:byId(id).value;
  const payload={telegram,discord:{enabled:byId("dc_enabled").checked,authorized_user_ids:lines("dc_users"),guild_ids:lines("dc_guilds"),channel_ids:lines("dc_channels"),application_id:byId("dc_app").value,client_id:byId("dc_client").value,activity_origin:byId("dc_origin").value,bot_token:byId("dc_clear_token").checked?null:byId("dc_token").value,client_secret:byId("dc_clear_secret").checked?null:byId("dc_secret").value,bridge_secret:byId("dc_clear_bridge").checked?null:byId("dc_bridge").value}};
  const r=await api("/api/config",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
- byId("status").textContent=r.ok?(r.telegram_environment?.written?"Saved. Telegram environment updated; restart the Telegram bot to activate changes.":"Saved, but Telegram environment export needs attention."):"Save failed: "+(await r.text());
+ byId("status").textContent=r.ok?((r.telegram_environment?.written&&r.discord_environment?.written)?"Saved. Telegram and Discord environment files updated; restart their services to activate changes.":"Saved, but one or more environment exports need attention."):"Save failed: "+(await r.text());
  if(r.ok){for(const id of ["tg_token","tg_pin","tg_sys_pass","tg_ody_pass","tg_jelly_pass","tg_kuma_pass","tg_gemini_key","dc_token","dc_secret","dc_bridge"])byId(id).value="";for(const id of ["tg_clear_token","tg_clear_pin","tg_clear_sys_pass","tg_clear_ody_pass","tg_clear_jelly_pass","tg_clear_kuma_pass","tg_clear_gemini_key","dc_clear_token","dc_clear_secret","dc_clear_bridge"])byId(id).checked=false;await load();}
 });
 load().catch(e=>byId("status").textContent="Configuration unavailable: "+e.message);
@@ -381,6 +381,7 @@ def create_app(config=None) -> Flask:
         ODYSSEUS_COMPOSE_FILE=os.environ.get("NEXUSONE_ODYSSEUS_COMPOSE_FILE", "~/Projects/odysseus/docker-compose.yml"),
         CONFIG_FILE=str(config_dir / "integrations.json"),
         TELEGRAM_ENV_FILE=os.environ.get("NEXUSONE_TELEGRAM_ENV_FILE", str(config_dir / "telegram.env")),
+        DISCORD_ENV_FILE=os.environ.get("NEXUSONE_DISCORD_ENV_FILE", str(config_dir / "discord.env")),
         AUDIT_FILE=os.environ.get("NEXUSONE_AUDIT_FILE", "~/.local/state/nexusone/audit.sqlite3"),
         DASHBOARD_AUTH_DB=os.environ.get("NEXUSONE_DASHBOARD_AUTH_DB", "~/.local/share/system-dashboard/dashboard-users.sqlite3"),
         SESSION_COOKIE_NAME="session", SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
@@ -531,20 +532,29 @@ def create_app(config=None) -> Flask:
     def put_config():
         _role_required(Capability.SETTINGS_MANAGE)()
         result = app.extensions["nexusone_config"].update(request.get_json(silent=False))
+        config_store = app.extensions["nexusone_config"]
+        telegram_settings = config_store.runtime_integration("telegram")
+        discord_settings = config_store.runtime_integration("discord")
         telegram_env = {"written": False, "restart_required": True}
+        discord_env = {"written": False, "restart_required": True}
         try:
-            env_result = write_telegram_environment(
-                app.extensions["nexusone_config"].runtime_integration("telegram"),
-                app.config["TELEGRAM_ENV_FILE"],
-            )
+            env_result = write_telegram_environment(telegram_settings, app.config["TELEGRAM_ENV_FILE"])
             telegram_env.update(written=True, **env_result)
         except OSError:
             app.logger.exception("Telegram environment export failed")
+        try:
+            env_result = write_discord_environment(
+                telegram_settings, discord_settings, app.config["DISCORD_ENV_FILE"]
+            )
+            discord_env.update(written=True, **env_result)
+        except OSError:
+            app.logger.exception("Discord environment export failed")
         app.extensions["nexusone_audit"].record(
             str(session.get("username", "")), "configuration.update", "telegram,discord",
             source_ip=request.remote_addr or "",
         )
         result["telegram_environment"] = telegram_env
+        result["discord_environment"] = discord_env
         return jsonify(result)
 
     @app.post("/api/explorer/uploads")
