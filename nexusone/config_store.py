@@ -114,9 +114,14 @@ class ConfigStore:
                         ):
                             raise ConfigurationError(f"{key} must be a numeric Discord ID")
                         if key == "activity_origin" and normalized:
-                            parsed = urlsplit(normalized)
+                            try:
+                                parsed = urlsplit(normalized)
+                                hostname = parsed.hostname
+                                parsed.port
+                            except ValueError as exc:
+                                raise ConfigurationError("activity_origin is not a valid URL") from exc
                             if (
-                                parsed.scheme != "https" or not parsed.hostname
+                                parsed.scheme != "https" or not hostname
                                 or parsed.username or parsed.password
                                 or parsed.path not in {"", "/"} or parsed.query or parsed.fragment
                             ):
