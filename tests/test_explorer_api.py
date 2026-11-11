@@ -68,3 +68,20 @@ def test_explorer_rejects_paths_outside_workspace(tmp_path):
     client, _ = signed_in_client(app)
     response = client.get("/api/files?path=escape")
     assert response.status_code == 400
+
+
+
+def test_explorer_hides_private_upload_staging_directory(tmp_path):
+    root = tmp_path / "workspace"
+    root.mkdir()
+    staging = root / ".nexusone-upload-tmp"
+    staging.mkdir()
+    (staging / "private.json").write_text('{"owner":"mat"}', encoding="utf-8")
+    app = create_app({
+        "TESTING": True, "SECRET_KEY": "test-secret", "SESSION_COOKIE_SECURE": False,
+        "EXPLORER_ROOT": str(root), "CONFIG_FILE": str(tmp_path / "settings.json"),
+    })
+    client, _ = signed_in_client(app)
+    listing = client.get("/api/files")
+    assert all(item["name"] != ".nexusone-upload-tmp" for item in listing.json["entries"])
+    assert client.get("/api/files?path=.nexusone-upload-tmp").status_code == 400
