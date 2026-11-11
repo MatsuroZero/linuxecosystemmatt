@@ -78,6 +78,27 @@ byId("settings").addEventListener("submit",async e=>{
 load().catch(e=>byId("status").textContent="Configuration unavailable: "+e.message);
 </script></html>"""
 
+_HOME_PAGE = """<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NexusOne</title>
+<style>
+:root{color-scheme:dark}body{font:16px system-ui;max-width:1000px;margin:3rem auto;padding:0 1rem;background:#111827;color:#e5e7eb}
+header{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
+nav{display:flex;gap:.6rem;flex-wrap:wrap}a{color:#c4b5fd;text-decoration:none}nav a,.tile{background:#1f2937;border:1px solid #374151;border-radius:10px;padding:.85rem 1rem}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1rem;margin-top:2rem}
+.tile{display:block;min-height:130px}.tile strong{display:block;font-size:1.1rem;margin-bottom:.5rem}.muted{color:#9ca3af}
+</style>
+<header><div><h1>NexusOne</h1><p class="muted">Local workstation control center</p></div>
+<nav><a href="/">Overview</a><a href="/explorer/uploads">Explorer</a>{% if is_admin %}<a href="/settings">Configuration</a>{% endif %}</nav></header>
+<div class="tiles">
+<a class="tile" href="/explorer/uploads"><strong>📁 Explorer</strong>Upload files to your PC with chunked transfers and resume support.<p class="muted">Workspace: {{ explorer_root }}</p></a>
+{% if is_admin %}<a class="tile" href="/settings"><strong>⚙️ Configuration</strong>Manage Telegram and Discord credentials, IDs, and authorized users. Secrets remain write-only.</a>{% endif %}
+<div class="tile"><strong>🛡️ Security</strong>Authenticated sessions, role checks, CSRF protection, request limits, and audit-ready APIs.<p class="muted">Localhost-first · Port 7171</p></div>
+<div class="tile"><strong>🔌 Integrations</strong>Telegram and Discord settings are scaffolded. Process reload and live connectivity checks are part of the integration phase.</div>
+</div>
+</html>"""
+
+
 _EXPLORER_UPLOAD_PAGE = """<!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NexusOne Explorer · Upload</title>
@@ -258,6 +279,18 @@ def create_app(config=None) -> Flask:
     @app.get("/api/security/csrf")
     def csrf():
         return jsonify(token=issue_csrf_token(session))
+
+    @app.get("/")
+    def home_page():
+        _role_required(Capability.DASHBOARD_READ)()
+        role = session.get("role")
+        if role == "user":
+            role = "viewer"
+        return render_template_string(
+            _HOME_PAGE,
+            is_admin=has_capability(role, Capability.SETTINGS_MANAGE),
+            explorer_root=app.config["EXPLORER_ROOT"],
+        )
 
     @app.get("/explorer/uploads")
     def explorer_upload_page():
