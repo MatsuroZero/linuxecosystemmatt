@@ -371,7 +371,7 @@ def create_app(config=None) -> Flask:
                     session["role"] = "admin"
                 else:
                     try:
-                        with sqlite3.connect(f"file:{auth_db}?mode=ro", uri=True, timeout=2) as db:
+                        with sqlite3.connect(auth_db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2) as db:
                             row = db.execute(
                                 "SELECT role FROM users WHERE lower(username)=lower(?)", (username,)
                             ).fetchone()
