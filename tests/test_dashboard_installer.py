@@ -30,6 +30,7 @@ def test_installer_backs_up_and_inserts_gateway_before_main_guard(tmp_path):
     result = install_dashboard_gateway(app, backup_path=backup)
 
     updated = app.read_text(encoding="utf-8")
+    compile(updated, str(app), "exec")
     assert result == backup
     assert backup.read_text(encoding="utf-8") == original
     assert updated.index("install_nexusone_gateway") < updated.index(
