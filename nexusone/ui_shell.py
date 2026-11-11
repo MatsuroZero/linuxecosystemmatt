@@ -5,9 +5,11 @@ from __future__ import annotations
 import html
 import json
 import os
+import re
+import secrets
 from pathlib import Path
 
-from flask import Response, request, session
+from flask import Response, g, request, session
 
 from nexusone.security.rbac import Capability, has_capability
 
@@ -207,7 +209,16 @@ def install_ui_shell(app) -> None:
             document = response.get_data(as_text=True)
         except (RuntimeError, UnicodeError):
             return response
+        nonce = secrets.token_urlsafe(18)
+        g.csp_nonce = nonce
+        document = re.sub(
+            r"<(script|style)(?=[\\s>])",
+            lambda match: f'<{match.group(1)} nonce="{nonce}"',
+            document,
+            flags=re.IGNORECASE,
+        )
         if "n1-shell-config" in document or '<meta charset="utf-8">' not in document:
+            response.set_data(document)
             return response
 
         role = session.get("role", "viewer")
