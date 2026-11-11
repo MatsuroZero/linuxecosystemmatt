@@ -175,10 +175,12 @@ def test_docker_project_controls_are_admin_only_and_audited(tmp_path, monkeypatc
 
 def test_configuration_save_exports_private_telegram_environment(tmp_path):
     env_path = tmp_path / "private" / "telegram.env"
+    discord_env_path = tmp_path / "private" / "discord.env"
     app = create_app({
         "TESTING": True, "SECRET_KEY": "test-secret", "SESSION_COOKIE_SECURE": False,
         "CONFIG_FILE": str(tmp_path / "settings.json"),
         "TELEGRAM_ENV_FILE": str(env_path),
+        "DISCORD_ENV_FILE": str(discord_env_path),
         "AUDIT_FILE": str(tmp_path / "audit.sqlite3"),
     })
     client, headers = admin_client(app)
@@ -187,7 +189,16 @@ def test_configuration_save_exports_private_telegram_environment(tmp_path):
         "telegram": {
             "bot_token": token_value, "authorized_user_ids": ["111", "222"],
             "links_pin": "7171", "gemini_api_key": "example-gemini-value",
-        }
+        },
+        "discord": {
+            "application_id": "123456789012345678",
+            "authorized_user_ids": ["11111111111111111"],
+            "redirect_uri": "https://activity.example.com/callback",
+            "activity_origin": "https://activity.example.com",
+            "allowed_origins": "https://activity.example.com",
+            "client_secret": "example-client-secret",
+            "links_pin": "discord-long-pin",
+        },
     })
     assert response.status_code == 200
     assert response.json["telegram_environment"]["written"] is True
@@ -195,4 +206,10 @@ def test_configuration_save_exports_private_telegram_environment(tmp_path):
     assert 'TELEGRAM_BOT_TOKEN="example-token-value"' in exported
     assert 'TELEGRAM_ALLOWED_USER_IDS="111,222"' in exported
     assert token_value not in str(response.json)
+    assert response.json["discord_environment"]["written"] is True
+    discord_exported = discord_env_path.read_text(encoding="utf-8")
+    assert 'DISCORD_APPLICATION_ID="123456789012345678"' in discord_exported
+    assert 'DISCORD_ALLOWED_USER_ID="11111111111111111"' in discord_exported
+    assert 'DISCORD_CLIENT_SECRET="example-client-secret"' in discord_exported
+    assert discord_env_path.stat().st_mode & 0o777 == 0o600
     assert env_path.stat().st_mode & 0o777 == 0o600
