@@ -213,3 +213,30 @@ def test_configuration_save_exports_private_telegram_environment(tmp_path):
     assert 'DISCORD_CLIENT_SECRET="example-client-secret"' in discord_exported
     assert discord_env_path.stat().st_mode & 0o777 == 0o600
     assert env_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_discord_configuration_exposes_and_persists_all_core_ids(tmp_path):
+    app = create_app({
+        "TESTING": True, "SECRET_KEY": "test-secret", "SESSION_COOKIE_SECURE": False,
+        "CONFIG_FILE": str(tmp_path / "settings.json"),
+    })
+    client, headers = admin_client(app)
+    page = client.get("/settings")
+    assert b"Discord application ID" in page.data
+    assert b"OAuth client ID" in page.data
+    assert b"Guild/server IDs" in page.data
+    assert b"Channel IDs" in page.data
+
+    saved = client.put("/api/config", headers=headers, json={
+        "discord": {
+            "application_id": "123456789012345678",
+            "client_id": "223456789012345678",
+            "guild_ids": ["323456789012345678"],
+            "channel_ids": ["423456789012345678"],
+        }
+    })
+    assert saved.status_code == 200
+    assert saved.json["discord"]["application_id"] == "123456789012345678"
+    assert saved.json["discord"]["client_id"] == "223456789012345678"
+    assert saved.json["discord"]["guild_ids"] == ["323456789012345678"]
+    assert saved.json["discord"]["channel_ids"] == ["423456789012345678"]
