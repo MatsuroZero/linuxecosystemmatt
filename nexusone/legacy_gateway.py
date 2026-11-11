@@ -128,20 +128,25 @@ class NexusOneGateway:
             return writes.append
 
         iterable = self.nexusone_wsgi(mounted, capture_start_response)
+        headers = captured.get("headers", [])
+        content_type = next(
+            (value for key, value in headers if key.lower() == "content-type"), ""
+        )
+        status = captured.get("status", "500 Internal Server Error")
+        if not content_type.lower().startswith("text/html"):
+            # Preserve streaming for downloads and other binary responses. In
+            # particular, large Explorer files must never be buffered in RAM.
+            start_response(status, headers)
+            return iterable
+
         try:
             body = b"".join([*writes, *iterable])
         finally:
             close = getattr(iterable, "close", None)
             if close:
                 close()
-
-        headers = captured.get("headers", [])
-        content_type = next(
-            (value for key, value in headers if key.lower() == "content-type"), ""
-        )
-        if content_type.lower().startswith("text/html"):
-            body, headers = self._rewrite_html(body, headers)
-        start_response(captured.get("status", "500 Internal Server Error"), headers)
+        body, headers = self._rewrite_html(body, headers)
+        start_response(status, headers)
         return [body]
 
 
