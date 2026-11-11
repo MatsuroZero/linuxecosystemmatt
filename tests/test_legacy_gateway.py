@@ -59,6 +59,7 @@ def test_gateway_keeps_legacy_routes_and_mounts_nexusone_same_origin(tmp_path):
     assert page.status_code == 200
     assert b'href="/nexusone/' in page.data
     assert b'/nexusone-api' in page.data
+    assert b'new Request(url.href,input)' in page.data
     assert b'window.location.pathname.startsWith("/nexusone/")' in page.data
 
     files = client.get("/nexusone-api/api/files")
@@ -100,12 +101,30 @@ def test_gateway_blocks_remote_access_unless_https_lan_mode_is_explicit(tmp_path
     assert http_denied.status_code == 403
     local_http_denied = secure_client.get("/nexusone/", environ_overrides={"REMOTE_ADDR": "127.0.0.1"})
     assert local_http_denied.status_code == 403
-    https_allowed = secure_client.get("/nexusone/", environ_overrides={"REMOTE_ADDR": "192.168.1.50", "wsgi.url_scheme": "https"})
-    assert https_allowed.status_code == 401
-    https_legacy_allowed = secure_client.get(
-        "/login",
+    direct_https_denied = secure_client.get(
+        "/nexusone/",
         environ_overrides={"REMOTE_ADDR": "192.168.1.50", "wsgi.url_scheme": "https"},
     )
+    assert direct_https_denied.status_code == 403
+
+    forwarded_http_denied = secure_client.get(
+        "/nexusone/",
+        environ_overrides={
+            "REMOTE_ADDR": "127.0.0.1",
+            "HTTP_X_FORWARDED_FOR": "192.168.1.50",
+            "HTTP_X_FORWARDED_PROTO": "http",
+        },
+    )
+    assert forwarded_http_denied.status_code == 403
+
+    proxy_environ = {
+        "REMOTE_ADDR": "127.0.0.1",
+        "HTTP_X_FORWARDED_FOR": "192.168.1.50",
+        "HTTP_X_FORWARDED_PROTO": "https",
+    }
+    https_allowed = secure_client.get("/nexusone/", environ_overrides=proxy_environ)
+    assert https_allowed.status_code == 401
+    https_legacy_allowed = secure_client.get("/login", environ_overrides=proxy_environ)
     assert https_legacy_allowed.status_code == 200
 
 
