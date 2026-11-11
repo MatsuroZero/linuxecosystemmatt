@@ -174,7 +174,6 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
     @bp.post("/api/files/delete")
     def delete_files():
         require(Capability.EXPLORER_WRITE)
-        nonlocal clipboard
         try:
             payload = request.get_json(silent=True) or {}
             raw_paths = payload.get("paths")
@@ -219,7 +218,6 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
     @bp.post("/api/files/clipboard")
     def set_clipboard():
         require(Capability.EXPLORER_WRITE)
-        nonlocal clipboard
         try:
             payload = request.get_json(silent=True) or {}
             raw_paths = payload.get("paths")
@@ -247,7 +245,6 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
     @bp.post("/api/files/paste")
     def paste_files():
         require(Capability.EXPLORER_WRITE)
-        nonlocal clipboard
         try:
             payload = request.get_json(silent=True) or {}
             destination = safe_path(payload.get("path", "."))
