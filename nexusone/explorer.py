@@ -138,6 +138,7 @@ def create_explorer_blueprint(root: str | Path) -> Blueprint:
     @bp.post("/api/files/rename")
     def rename_file():
         require(Capability.EXPLORER_WRITE)
+        nonlocal clipboard
         try:
             payload = request.get_json(silent=True) or {}
             source = safe_path(payload.get("path", ""))
