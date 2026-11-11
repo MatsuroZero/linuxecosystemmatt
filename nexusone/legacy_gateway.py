@@ -20,11 +20,21 @@ _API_PREFIX = "/nexusone-api"
 _HTML_INJECT = (
     '<script>(function(){'
     'const nativeFetch=window.fetch.bind(window);'
-    'window.fetch=function(input,init){'
-    'if(typeof input==="string"&&input.startsWith("/api/"))'
-    'input="/nexusone-api"+input;'
-    'return nativeFetch(input,init);'
+    'const rewrite=input=>{'
+    'let raw=null;'
+    'if(input instanceof Request)raw=input.url;'
+    'else if(input instanceof URL)raw=input.href;'
+    'else if(typeof input==="string")raw=input;'
+    'if(raw===null)return input;'
+    'try{const url=new URL(raw,window.location.href);'
+    'if(url.origin!==window.location.origin||!url.pathname.startsWith("/api/"))return input;'
+    'url.pathname="/nexusone-api"+url.pathname;'
+    'if(input instanceof Request)return new Request(url.href,input);'
+    'if(input instanceof URL)return url;'
+    'return url.href;'
+    '}catch(e){return input}'
     '};'
+    'window.fetch=function(input,init){return nativeFetch(rewrite(input),init)};'
     '})();</script>'
 )
 
@@ -68,7 +78,7 @@ class NexusOneGateway:
 
         # The UI templates use root-relative links. Keep them inside the UI mount.
         html = re.sub(
-            r'href="/(?!nexusone(?:/|"))',
+            r'href="/(?!/|nexusone(?:/|-|"))',
             'href="/nexusone/',
             html,
         )
@@ -87,25 +97,34 @@ class NexusOneGateway:
         return rewritten, filtered
 
     def __call__(self, environ: dict[str, Any], start_response: Callable) -> Iterable[bytes]:
-        remote = environ.get("REMOTE_ADDR")
-        scheme = str(environ.get("wsgi.url_scheme", "http"))
-        # Apply the network boundary to the entire dashboard, not only the
-        # NexusOne mounts. A local reverse proxy can make remote clients appear
-        # to originate from loopback, so forwarded requests are treated remote.
-        has_forwarded_identity = bool(
-            environ.get("HTTP_FORWARDED") or environ.get("HTTP_X_FORWARDED_FOR")
+        remote = str(environ.get("REMOTE_ADDR") or "")
+        forwarded_for = str(environ.get("HTTP_X_FORWARDED_FOR") or "").strip()
+        forwarded_proto = str(
+            environ.get("HTTP_X_FORWARDED_PROTO") or ""
+        ).split(",", 1)[0].strip().lower()
+        is_loopback_proxy = (
+            _is_loopback(remote)
+            and bool(forwarded_for)
+            and forwarded_proto == "https"
         )
-        is_local_request = _is_loopback(str(remote or "")) and not has_forwarded_identity
-        if self.allow_lan and scheme != "https":
-            body = b"HTTPS is required while LAN mode is enabled."
-            start_response("403 Forbidden", [
-                ("Content-Type", "text/plain; charset=utf-8"),
-                ("Content-Length", str(len(body))),
-                ("Cache-Control", "no-store"),
-            ])
-            return [body]
-        if not is_local_request and not self.allow_lan:
-            body = b"The dashboard is available on this machine only."
+        is_direct_local = (
+            _is_loopback(remote)
+            and not forwarded_for
+            and not environ.get("HTTP_FORWARDED")
+        )
+
+        # LAN clients must arrive through the local HTTPS reverse proxy. The
+        # backend listener is never trusted merely because a request claims
+        # to use HTTPS; direct remote connections are always rejected.
+        if is_loopback_proxy:
+            environ["wsgi.url_scheme"] = "https"
+        allowed = is_loopback_proxy if self.allow_lan else is_direct_local
+        if not allowed:
+            body = (
+                b"An HTTPS connection through the trusted local proxy is required."
+                if self.allow_lan
+                else b"The dashboard is available on this machine only."
+            )
             start_response("403 Forbidden", [
                 ("Content-Type", "text/plain; charset=utf-8"),
                 ("Content-Length", str(len(body))),
