@@ -67,6 +67,9 @@ def test_legacy_html_bootstraps_csrf_header_for_fetch(tmp_path):
     assert page.status_code == 200
     assert b"nexusone-csrf-token" in page.data
     assert b"X-CSRF-Token" in page.data
+    assert b'nexusone-admin" content="false"' in page.data
+    assert b"nexusone-explorer-link" in page.data
+    assert b"nexusone-settings-link" in page.data
     assert csrf_token(page)
 
 
@@ -118,6 +121,8 @@ def test_reserved_dashboard_admin_can_use_terminal(tmp_path):
     client = app.test_client()
     signed_in(client, username="marwan", role="user")
 
+    page = client.get("/")
+    assert b'nexusone-admin" content="true"' in page.data
     response = client.get("/api/terminal")
     assert response.status_code == 200
     assert response.json == {"ok": True, "route": "terminal"}
