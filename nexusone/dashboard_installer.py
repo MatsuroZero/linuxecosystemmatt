@@ -65,7 +65,11 @@ def install_dashboard_gateway(
         raise ValueError("NexusOne gateway code already appears in the dashboard source")
     if source.count(_MAIN_GUARD) != 1:
         raise ValueError('Expected exactly one if __name__ == "__main__": entry point')
-    if "DASHBOARD_AUTH_DB" not in source or "_SHARING_HOME" not in source:
+    insertion = source.index(_MAIN_GUARD)
+    module_source = source[:insertion]
+    if "app = Flask(" not in module_source:
+        raise ValueError("Dashboard Flask app must be initialized before its main entry point")
+    if "DASHBOARD_AUTH_DB =" not in module_source or "_SHARING_HOME =" not in module_source:
         raise ValueError("Dashboard source is missing the audited auth DB or sharing-root variables")
 
     backup = Path(backup_path).expanduser() if backup_path else _timestamped_backup(
@@ -76,7 +80,6 @@ def install_dashboard_gateway(
     if backup.resolve() == target.resolve():
         raise ValueError("Backup path must differ from the dashboard source path")
 
-    insertion = source.index(_MAIN_GUARD)
     updated = source[:insertion].rstrip() + "\n\n" + _INTEGRATION_BLOCK + "\n" + source[insertion:]
     mode = stat.S_IMODE(target.stat().st_mode)
 
