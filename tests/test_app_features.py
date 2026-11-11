@@ -109,3 +109,29 @@ def test_services_page_and_api_are_role_protected(monkeypatch):
     allowed = admin.post("/api/services/telegram-bot/restart", headers=headers)
     assert allowed.status_code == 200
     assert calls == [("telegram-bot", "restart")]
+
+
+
+def test_activity_log_is_admin_only_and_never_records_secret_values(tmp_path):
+    app = create_app({
+        "TESTING": True, "SECRET_KEY": "test-secret", "SESSION_COOKIE_SECURE": False,
+        "CONFIG_FILE": str(tmp_path / "settings.json"),
+        "AUDIT_FILE": str(tmp_path / "audit.sqlite3"),
+    })
+    viewer = app.test_client()
+    with viewer.session_transaction() as state:
+        state.update(authenticated=True, username="viewer", role="user")
+    assert viewer.get("/activity").status_code == 403
+    assert viewer.get("/api/audit").status_code == 403
+
+    admin, headers = admin_client(app)
+    secret = "do-not-put-this-in-audit"
+    saved = admin.put("/api/config", headers=headers, json={
+        "telegram": {"bot_token": secret}
+    })
+    assert saved.status_code == 200
+    assert admin.get("/activity").status_code == 200
+    audit = admin.get("/api/audit")
+    assert audit.status_code == 200
+    assert audit.json["events"][0]["action"] == "configuration.update"
+    assert secret not in str(audit.json)
