@@ -1,5 +1,4 @@
 import pytest
-
 from flask import Flask, jsonify, session
 from werkzeug.test import Client
 from werkzeug.wrappers import Response
