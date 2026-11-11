@@ -1,0 +1,24 @@
+[Unit]
+Description=NexusOne Local Workstation Control Plane
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Projects/nexusone
+EnvironmentFile=%h/.config/nexusone/env
+ExecStart=%h/Projects/nexusone/.venv/bin/python -m nexusone
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=%h
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+UMask=0077
+
+[Install]
+WantedBy=default.target
