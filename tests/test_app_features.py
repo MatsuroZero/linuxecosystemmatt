@@ -6,7 +6,7 @@ from nexusone.app import create_app
 def admin_client(app):
     client = app.test_client()
     with client.session_transaction() as state:
-        state["role"] = "admin"
+        state.update(authenticated=True, username="marwan", role="admin")
     csrf = client.get("/api/security/csrf").json["token"]
     return client, {"X-CSRF-Token": csrf}
 
@@ -17,6 +17,9 @@ def test_configuration_is_admin_only_and_secrets_are_write_only(tmp_path):
         "CONFIG_FILE": str(tmp_path / "settings.json"),
     })
     client = app.test_client()
+    assert client.get("/api/config").status_code == 401
+    with client.session_transaction() as state:
+        state.update(authenticated=True, username="viewer", role="user")
     assert client.get("/api/config").status_code == 403
     client, headers = admin_client(app)
     response = client.put("/api/config", headers=headers, json={
@@ -38,9 +41,10 @@ def test_explorer_upload_requires_role_and_supports_chunks(tmp_path):
     client = app.test_client()
     csrf = client.get("/api/security/csrf").json["token"]
     assert client.post("/api/explorer/uploads", headers={"X-CSRF-Token": csrf},
-                       json={"filename": "x.bin", "destination": "", "size": 6}).status_code == 403
+                       json={"filename": "x.bin", "destination": "", "size": 6}).status_code == 401
     with client.session_transaction() as state:
-        state["role"] = "viewer"
+        state.update(authenticated=True, username="viewer", role="user")
+    csrf = client.get("/api/security/csrf").json["token"]
     started = client.post("/api/explorer/uploads", headers={"X-CSRF-Token": csrf},
                           json={"filename": "x.bin", "destination": "Phone", "size": 6})
     assert started.status_code == 201
