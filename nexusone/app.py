@@ -153,7 +153,10 @@ def resolve_bind_host(environ=None) -> str:
 
 def _role_required(capability: Capability):
     def check():
-        if not has_capability(session.get("role"), capability):
+        role = session.get("role")
+        if role == "user":
+            role = "viewer"
+        if not has_capability(role, capability):
             abort(403, description="Insufficient permissions")
     return check
 
@@ -163,8 +166,19 @@ def create_app(config=None) -> Flask:
     supplied = dict(config or {})
     secret = supplied.pop("SECRET_KEY", None) or os.environ.get("NEXUSONE_SECRET_KEY")
     if not secret:
+        # Reuse the legacy dashboard key so its signed Flask login session can
+        # be recognized during the staged migration.
+        key_path = Path(os.environ.get("NEXUSONE_SESSION_KEY_FILE", "~/.config/system-dashboard/secret_key")).expanduser()
+        try:
+            if key_path.is_file():
+                secret = key_path.read_text(encoding="utf-8").strip() or None
+                if secret:
+                    os.chmod(key_path, 0o600)
+        except OSError:
+            secret = None
+    if not secret:
         if os.environ.get("NEXUSONE_ENV", "development").lower() == "production":
-            raise RuntimeError("NEXUSONE_SECRET_KEY must be configured in production")
+            raise RuntimeError("NEXUSONE_SECRET_KEY or a readable legacy dashboard session key is required in production")
         secret = secrets.token_hex(32)
 
     config_dir = Path(os.environ.get("NEXUSONE_CONFIG_DIR", "~/.config/nexusone")).expanduser()
@@ -173,8 +187,10 @@ def create_app(config=None) -> Flask:
         UPLOAD_CHUNK_BYTES=8 * 1024 * 1024, UPLOAD_MAX_ACTIVE=3,
         EXPLORER_ROOT=os.environ.get("NEXUSONE_EXPLORER_ROOT", "~/"),
         CONFIG_FILE=str(config_dir / "integrations.json"),
-        SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
-        SESSION_COOKIE_SECURE=os.environ.get("NEXUSONE_COOKIE_SECURE", "1") != "0",
+        SESSION_COOKIE_NAME="session", SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=(os.environ.get("NEXUSONE_COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes"}
+                               if os.environ.get("NEXUSONE_COOKIE_SECURE") is not None
+                               else os.environ.get("NEXUSONE_ALLOW_LAN", "").strip().lower() in {"1", "true", "yes"}),
         TRUSTED_ORIGINS=(), RATE_LIMIT=120, RATE_WINDOW_SECONDS=60,
         CONTENT_SECURITY_POLICY="default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'",
     )
@@ -195,6 +211,12 @@ def create_app(config=None) -> Flask:
                 abort(413, description="Upload chunk is too large")
         elif request.content_length is not None and request.content_length > app.config["MAX_REQUEST_BYTES"]:
             abort(413, description="Request body is too large")
+        if request.endpoint == "health":
+            return
+        if not session.get("authenticated"):
+            if request.path.startswith("/api/"):
+                return jsonify(error="Authentication required"), 401
+            return ("Authentication required. Sign in through the dashboard first.", 401)
         if request.method not in _MUTATING:
             return
         origin = request.headers.get("Origin")
