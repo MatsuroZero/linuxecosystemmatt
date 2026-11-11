@@ -1,0 +1,56 @@
+# NexusOne
+
+NexusOne is a lightweight, local-first control plane for the Linux workstation ecosystem.
+
+It is being assembled from the existing System Dashboard, Nexus Control CLI, Telegram Control Bot, and Discord Control Activity. The goal is one localhost web interface with a shared, permission-aware core while keeping each integration independently testable and restartable.
+
+> **Status: foundation in progress.** This repository is not yet a drop-in replacement for the existing tools. Keep current installations and backups until migration is verified.
+
+## Design principles
+
+- Localhost-only by default; LAN access is an explicit deployment choice.
+- One authorization policy shared by every interface.
+- Administrator-only access for terminal, power, service, Docker, credential, and saved-command controls.
+- CSRF protection, bounded requests, rate limits, and auditable state changes.
+- Small modules with independent tests.
+- Existing Explorer access remains available, constrained to the configured user workspace.
+- Preserve historical snapshots in an immutable archive. Never delete source backups as part of migration.
+- No secrets, environment files, dependency folders, caches, or generated bundles in source control.
+
+## Planned structure
+
+```text
+nexusone/
+  app/             Web application and API
+  security/        Authentication, roles, CSRF, rate limiting
+  core/            Service registry, events, audit, task orchestration
+  adapters/        systemd, Docker, Ollama, desktop controls
+  integrations/    Telegram and Discord adapters
+  tests/
+  config/
+  deploy/
+  docs/
+  archive/         Preserved historical snapshots and provenance
+```
+
+## Migration phases
+
+1. **Audit and baseline:** inventory source projects, identify canonical versions, inspect backups and dependencies, and record risks.
+2. **Security foundation:** central roles, CSRF, request limits, rate limiting, localhost-first binding, and permission tests.
+3. **Modularization:** extract shared services and split the dashboard into independently tested modules.
+4. **Integration:** make Telegram and Discord clients of the shared core without duplicating privileged logic.
+5. **Release:** verify migration, installation, tests, documentation, and deployment before replacing anything.
+
+## Current audit notes
+
+The source audit found an existing Flask dashboard, a useful Nexus CLI foundation, a Telegram bot with a user allowlist, and a Discord Activity with a single-user allowlist and 31 passing Node tests in an isolated run.
+
+The uploaded Discord archive contains a populated `.env` and bundled `node_modules`. Neither is suitable for publication. Treat credentials in that archive as exposed and rotate them before deployment. The original archive is retained as audit input; it is not copied into this repository.
+
+See [the audit report](docs/AUDIT.md) and [the architecture plan](docs/ARCHITECTURE.md).
+
+## Development
+
+The first implementation slice will establish the shared security primitives and tests. Existing services remain the source of truth until each migration step has passed its tests and a manual smoke test on the target workstation.
+
+Never run the web process as root. Use narrowly scoped system permissions only where a specific adapter requires them.
