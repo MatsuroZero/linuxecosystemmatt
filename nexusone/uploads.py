@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import tempfile
 import uuid
 from pathlib import Path, PurePosixPath
 from threading import RLock
@@ -90,22 +91,30 @@ class UploadManager:
             if offset != state["offset"]:
                 raise UploadError("Chunk offset does not match upload state")
             remaining = state["size"] - state["offset"]
+            chunk_name = None
             written = 0
-            with state["path"].open("ab") as output:
-                while written <= self.chunk_limit:
-                    block = stream.read(min(1024 * 1024, self.chunk_limit + 1 - written))
-                    if not block:
-                        break
-                    written += len(block)
-                    if written > self.chunk_limit or written > remaining:
-                        raise UploadError("Chunk exceeds allowed size")
-                    output.write(block)
-                output.flush()
-                os.fsync(output.fileno())
-            state["offset"] += written
-            if state["offset"] > state["size"]:
-                raise UploadError("Upload exceeds declared size")
-            return {"offset": state["offset"], "complete": state["offset"] == state["size"]}
+            try:
+                fd, chunk_name = tempfile.mkstemp(prefix=".chunk-", dir=self.staging)
+                with os.fdopen(fd, "wb") as chunk:
+                    while written <= self.chunk_limit:
+                        block = stream.read(min(1024 * 1024, self.chunk_limit + 1 - written))
+                        if not block:
+                            break
+                        written += len(block)
+                        if written > self.chunk_limit or written > remaining:
+                            raise UploadError("Chunk exceeds allowed size")
+                        chunk.write(block)
+                    chunk.flush()
+                    os.fsync(chunk.fileno())
+                with open(chunk_name, "rb") as source, state["path"].open("ab") as output:
+                    shutil.copyfileobj(source, output, length=1024 * 1024)
+                    output.flush()
+                    os.fsync(output.fileno())
+                state["offset"] += written
+                return {"offset": state["offset"], "complete": state["offset"] == state["size"]}
+            finally:
+                if chunk_name:
+                    Path(chunk_name).unlink(missing_ok=True)
 
     def finish(self, upload_id: str) -> dict:
         with self._lock:
@@ -115,9 +124,12 @@ class UploadManager:
             if state["offset"] != state["size"]:
                 raise UploadError("Upload is incomplete")
             target = state["target"]
-            if target.exists():
-                raise UploadError("Destination already exists; overwrite is not implicit")
-            os.replace(state["path"], target)
+            try:
+                # Hard-link finalization is atomic and fails rather than overwriting.
+                os.link(state["path"], target, follow_symlinks=False)
+            except FileExistsError as exc:
+                raise UploadError("Destination already exists; overwrite is not implicit") from exc
+            state["path"].unlink(missing_ok=True)
             del self._sessions[upload_id]
             return {"filename": state["filename"], "size": state["size"]}
 
