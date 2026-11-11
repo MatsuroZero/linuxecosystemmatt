@@ -49,7 +49,7 @@ def _systemctl(service: Service, *args: str) -> list[str]:
 
 
 def _state(service: Service, command: str) -> str:
-    result = _run(_systemctl(service, command, service.unit))
+    result = _run(_systemctl(service, command, service.unit), timeout=2)
     value = result.stdout.strip()
     return value[:80] if value else "unknown"
 
