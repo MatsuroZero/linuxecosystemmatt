@@ -166,3 +166,29 @@ def test_docker_project_controls_are_admin_only_and_audited(tmp_path, monkeypatc
     assert calls == ["stop"]
     events = admin.get("/api/audit").json["events"]
     assert events[0]["action"] == "docker.stop"
+
+
+
+def test_configuration_save_exports_private_telegram_environment(tmp_path):
+    env_path = tmp_path / "private" / "telegram.env"
+    app = create_app({
+        "TESTING": True, "SECRET_KEY": "test-secret", "SESSION_COOKIE_SECURE": False,
+        "CONFIG_FILE": str(tmp_path / "settings.json"),
+        "TELEGRAM_ENV_FILE": str(env_path),
+        "AUDIT_FILE": str(tmp_path / "audit.sqlite3"),
+    })
+    client, headers = admin_client(app)
+    token_value = "example-token-value"
+    response = client.put("/api/config", headers=headers, json={
+        "telegram": {
+            "bot_token": token_value, "authorized_user_ids": ["111", "222"],
+            "links_pin": "7171", "gemini_api_key": "example-gemini-value",
+        }
+    })
+    assert response.status_code == 200
+    assert response.json["telegram_environment"]["written"] is True
+    exported = env_path.read_text(encoding="utf-8")
+    assert 'TELEGRAM_BOT_TOKEN="example-token-value"' in exported
+    assert 'TELEGRAM_ALLOWED_USER_IDS="111,222"' in exported
+    assert token_value not in str(response.json)
+    assert env_path.stat().st_mode & 0o777 == 0o600
