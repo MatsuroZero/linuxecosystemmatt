@@ -4,7 +4,7 @@ import os
 import secrets
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, request, session, render_template_string
+from flask import Flask, abort, jsonify, render_template_string, request, session
 
 from nexusone.config_store import ConfigStore, ConfigurationError
 from nexusone.security.csrf import issue_csrf_token, verify_csrf_token
@@ -133,9 +133,9 @@ def create_app(config=None) -> Flask:
         if request.method not in _MUTATING:
             return
         origin = request.headers.get("Origin")
-        if origin and origin.rstrip("/") != request.host_url.rstrip("/"):
-            if origin.rstrip("/") not in set(app.config["TRUSTED_ORIGINS"]):
-                abort(403, description="Untrusted request origin")
+        if (origin and origin.rstrip("/") != request.host_url.rstrip("/")
+                and origin.rstrip("/") not in set(app.config["TRUSTED_ORIGINS"])):
+            abort(403, description="Untrusted request origin")
         if not verify_csrf_token(session, request.headers.get("X-CSRF-Token")):
             abort(403, description="CSRF validation failed")
 
