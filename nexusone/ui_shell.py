@@ -7,7 +7,6 @@ import json
 import os
 import re
 import secrets
-
 from pathlib import Path
 
 from flask import Response, g, request, session
