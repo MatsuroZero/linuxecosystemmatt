@@ -41,6 +41,31 @@ The helper takes the existing Flask app's `secret_key` and session cookie name a
 5. Restart the dashboard service during a maintenance window. The dashboard remains at its normal root URL; NexusOne is available at `/nexusone/`.
 6. Verify login, logout, viewer/admin access, Explorer operations, and the legacy dashboard's existing APIs before enabling any new service controls.
 
+## Security bridge installed by the gateway
+
+The current `install_nexusone_gateway(...)` helper also installs
+`nexusone.legacy_security` on the existing Flask app after its original login
+hook. This closes the gap where mounting NexusOne alone would leave legacy
+machine-control routes governed only by the old route-level checks.
+
+- The bridge refreshes non-reserved users from the configured SQLite account
+  database on each authenticated request and invalidates deleted accounts.
+- The reserved `marwan` dashboard identity remains the sole administrator.
+- Terminal access, package actions, power/network changes, remote keyboard and
+  mouse input, screen viewing/capture, process termination, Serpantinum changes,
+  and local-agent execution are administrator-only.
+- Explorer and ordinary dashboard reads remain available to authenticated
+  users. The existing Explorer workspace boundary is unchanged.
+- Unsafe legacy requests require a same-origin Origin/Referer and a session-bound
+  CSRF token. The response bootstrap adds the token to same-origin Fetch and
+  XMLHttpRequest mutations, including the existing sharing upload flow and
+  logout forms. Upload bodies are not parsed by the CSRF middleware.
+- The middleware is intentionally installed only through the gateway helper;
+  do not mount the raw legacy Flask app on a LAN listener without this bridge.
+
+The bridge is a migration guard, not a substitute for route-by-route capability
+tests. New legacy endpoints must be classified before they are exposed.
+
 ## Security boundaries
 
 - Do not set `allow_lan=True` on the gateway for plain HTTP. The gateway rejects non-loopback requests unless LAN mode is explicitly enabled, and then rejects them unless the WSGI scheme is HTTPS.
