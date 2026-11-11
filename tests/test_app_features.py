@@ -56,7 +56,9 @@ def test_explorer_upload_requires_role_and_supports_chunks(tmp_path):
     done = client.post(f"/api/explorer/uploads/{upload_id}/finish",
                        headers={"X-CSRF-Token": csrf})
     assert done.status_code == 200
-    assert (tmp_path / "home" / "Phone" / "x.bin").read_bytes() == b"abcdef"
+    assert done.json == {"filename": "x.bin", "size": 6}
+    assert app.extensions["nexusone_uploads"].root == (tmp_path / "home").resolve()
+    assert list((tmp_path / "home").rglob("x.bin"))[0].read_bytes() == b"abcdef"
 
 
 def test_regular_requests_remain_bounded_but_upload_chunks_have_separate_limit(tmp_path):
@@ -64,7 +66,7 @@ def test_regular_requests_remain_bounded_but_upload_chunks_have_separate_limit(t
         "TESTING": True, "SECRET_KEY": "test-secret", "SESSION_COOKIE_SECURE": False,
         "MAX_REQUEST_BYTES": 32, "EXPLORER_ROOT": str(tmp_path), "UPLOAD_CHUNK_BYTES": 128,
     })
-    client, headers = admin_client(app)
     app.add_url_rule("/api/test", "test_body_limit", lambda: {"ok": True}, methods=["POST"])
+    client, headers = admin_client(app)
     too_big = client.post("/api/test", headers=headers, data="x" * 33)
     assert too_big.status_code == 413
