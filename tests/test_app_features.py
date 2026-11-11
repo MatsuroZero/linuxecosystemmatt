@@ -81,3 +81,31 @@ def test_regular_requests_remain_bounded_but_upload_chunks_have_separate_limit(t
     client, headers = admin_client(app)
     too_big = client.post("/api/test", headers=headers, data="x" * 33)
     assert too_big.status_code == 413
+
+
+
+def test_services_page_and_api_are_role_protected(monkeypatch):
+    import nexusone.app as nexus_app
+
+    monkeypatch.setattr(nexus_app, "list_services", lambda: [{
+        "name": "telegram-bot", "scope": "user", "unit": "telegram-control-bot.service",
+        "active": "active", "enabled": "enabled", "controllable": True,
+    }])
+    calls = []
+    monkeypatch.setattr(nexus_app, "control_service", lambda name, action: (
+        calls.append((name, action)) or {"name": name, "action": action, "active": "active"}
+    ))
+    app = create_app({"TESTING": True, "SECRET_KEY": "test-secret", "SESSION_COOKIE_SECURE": False})
+    client = app.test_client()
+    assert client.get("/services").status_code == 401
+    with client.session_transaction() as state:
+        state.update(authenticated=True, username="viewer", role="user")
+    assert client.get("/services").status_code == 200
+    assert client.get("/api/services").status_code == 200
+    csrf = client.get("/api/security/csrf").json["token"]
+    denied = client.post("/api/services/telegram-bot/restart", headers={"X-CSRF-Token": csrf})
+    assert denied.status_code == 403
+    admin, headers = admin_client(app)
+    allowed = admin.post("/api/services/telegram-bot/restart", headers=headers)
+    assert allowed.status_code == 200
+    assert calls == [("telegram-bot", "restart")]
