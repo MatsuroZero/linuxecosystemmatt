@@ -189,8 +189,14 @@ def install_legacy_security(
             return response
 
         token = issue_csrf_token(session)
+        is_admin = (
+            str(session.get("username", "")).casefold() == "marwan"
+            and session.get("role") == "admin"
+        )
+        admin_flag = "true" if is_admin else "false"
         bootstrap = (
             '<meta name="nexusone-csrf-token" content="' + token + '">'
+            '<meta name="nexusone-admin" content="' + admin_flag + '">'
             '<script>(function(){'
             'const token=document.querySelector("meta[name=nexusone-csrf-token]")?.content;'
             'if(!token)return;'
