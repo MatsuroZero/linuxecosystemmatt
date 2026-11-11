@@ -16,7 +16,7 @@ def test_service_discovery_uses_fixed_allowlist_and_no_shell(monkeypatch):
     services = service_manager.list_services()
     assert {item["name"] for item in services} == {
         "jellyfin", "docker", "ollama", "localnexus", "telegram-bot",
-        "dashboard", "dashboard-ydotool", "sunshine",
+        "discord-activity", "dashboard", "dashboard-ydotool", "sunshine",
     }
     assert all(item["active"] == "active" for item in services)
     assert all("sudo" not in argv and "shell" not in argv for argv, _ in calls)
@@ -35,6 +35,13 @@ def test_only_allowlisted_user_services_can_be_controlled(monkeypatch):
     assert result["action"] == "restart"
     assert calls[0] == ["systemctl", "--user", "restart", "telegram-control-bot.service"]
     assert calls[1] == ["systemctl", "--user", "is-active", "telegram-control-bot.service"]
+
+    calls.clear()
+    result = service_manager.control_service("discord-activity", "restart")
+    assert result["name"] == "discord-activity"
+    assert result["action"] == "restart"
+    assert calls[0] == ["systemctl", "--user", "restart", "discord-control-activity.service"]
+    assert calls[1] == ["systemctl", "--user", "is-active", "discord-control-activity.service"]
 
 
 def test_system_services_are_status_only(monkeypatch):
