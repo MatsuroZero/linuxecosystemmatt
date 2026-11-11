@@ -17,6 +17,8 @@ jobs:
           cache: pip
       - name: Install project and test dependencies
         run: python -m pip install -e ".[dev]"
+      - name: Compile deployment installer
+        run: python -m py_compile deploy/integrate_legacy_dashboard.py nexusone/dashboard_installer.py
       - name: Run tests
         run: python -m pytest
       - name: Lint
