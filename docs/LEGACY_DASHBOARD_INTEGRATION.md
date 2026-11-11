@@ -32,16 +32,18 @@ install_nexusone_gateway(app, {
 
 The helper takes the existing Flask app's `secret_key` and session cookie name automatically. Passing the actual `DASHBOARD_AUTH_DB` path is mandatory: the gateway refuses to install without it, rather than silently trusting a signed cookie without checking account existence and current role.
 
-4. The gateway's legacy security bridge adds a File Explorer link to the existing
-   dashboard taskbar and an administrator-only Integration Configuration link.
-   An optional general NexusOne overview link can be added to the dashboard
-   navigation with `<a href="/nexusone/">NexusOne</a>`.
+4. The legacy security bridge restores the existing dashboard's section
+   navigation and adds File Transfer and administrator-only Integrations tabs.
+   These tabs embed the NexusOne pages on the same origin; the taskbar also gets
+   direct Explorer and administrator-only Configuration shortcuts. An optional
+   general NexusOne overview link can be added with
+   `<a href="/nexusone/">NexusOne</a>`.
 5. Restart the dashboard service during a maintenance window. The dashboard
    remains at its normal root URL; NexusOne pages are available under
    `/nexusone/`.
-6. Verify login, logout, viewer/admin access, Explorer operations, the
-   Configuration link visibility, and the legacy dashboard's existing APIs
-   before enabling any new service controls.
+6. Verify login, logout, viewer/admin access, every legacy section tab, the
+   embedded File Transfer and Integrations tabs, streamed downloads, and the
+   legacy dashboard's existing APIs before enabling any new service controls.
 
 ## Security bridge installed by the gateway
 
@@ -79,6 +81,12 @@ tests. New legacy endpoints must be classified before they are exposed.
 
 ## Current limitations
 
-The gateway provides a same-origin route mount, not a completed dashboard redesign. The legacy dashboard remains the identity provider and retains its existing home page. NexusOne's Explorer and Configuration pages are available through the new navigation link, but the legacy dashboard's visual components, monitoring widgets, terminal, and remaining Docker controls still need to be migrated into the shared UI.
+The gateway provides a same-origin route mount and an initial unified navigation
+shell, not a completed dashboard redesign. The legacy dashboard remains the
+identity provider and retains its existing monitoring, terminal, and desktop
+control sections. NexusOne File Transfer and Integrations render inside same-origin
+tabs, while the underlying NexusOne pages still retain their own visual templates.
+The remaining work is visual unification and capability-by-capability migration,
+not rebuilding the existing monitoring widgets from scratch.
 
 The first gateway tests exercise shared sessions, route isolation, CSRF, and the loopback/HTTPS boundary. They do not replace a workstation smoke test on the user's CachyOS installation.
