@@ -165,6 +165,8 @@ def install_nexusone_gateway(
         "SESSION_COOKIE_NAME",
         legacy_app.config.get("SESSION_COOKIE_NAME", "session"),
     )
+    if allow_lan:
+        settings["SESSION_COOKIE_SECURE"] = True
     if not settings.get("DASHBOARD_AUTH_DB"):
         raise RuntimeError(
             "DASHBOARD_AUTH_DB must point to the legacy dashboard's users database"
