@@ -54,5 +54,5 @@ def test_ui_shell_hides_admin_navigation_for_viewers():
     page = client.get("/")
     assert page.status_code == 200
     assert b'name="n1-shell-config"' in page.data
-    assert b"Integrations" not in page.data
-    assert b"Activity" not in page.data
+    assert b"/settings" not in page.data
+    assert b"/activity" not in page.data
