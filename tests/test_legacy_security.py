@@ -1,5 +1,7 @@
 import re
+import shutil
 import sqlite3
+import subprocess
 
 from flask import Flask, jsonify, session
 
@@ -141,3 +143,28 @@ def test_deleted_legacy_account_is_rejected_even_with_a_signed_cookie(tmp_path):
 
     response = client.get("/api/files")
     assert response.status_code == 401
+
+
+def test_legacy_security_bootstrap_javascript_parses_when_node_is_available(tmp_path):
+    node = shutil.which("node")
+    if node is None:
+        import pytest
+
+        pytest.skip("Node.js is not installed")
+
+    app, _ = make_legacy_app(tmp_path)
+    client = app.test_client()
+    signed_in(client)
+    page = client.get("/")
+    match = re.search(rb"<script>([\\s\\S]*?)</script>", page.data)
+    assert match, "CSRF bootstrap script was not injected"
+
+    script = tmp_path / "legacy-security-bootstrap.js"
+    script.write_bytes(match.group(1))
+    result = subprocess.run(
+        [node, "--check", str(script)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
