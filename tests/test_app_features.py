@@ -21,6 +21,10 @@ def test_configuration_is_admin_only_and_secrets_are_write_only(tmp_path):
     with client.session_transaction() as state:
         state.update(authenticated=True, username="viewer", role="user")
     assert client.get("/api/config").status_code == 403
+    viewer_home = client.get("/")
+    assert viewer_home.status_code == 200
+    assert b"Explorer" in viewer_home.data
+    assert b"Configuration" not in viewer_home.data
     client, headers = admin_client(app)
     response = client.put("/api/config", headers=headers, json={
         "telegram": {"bot_token": "do-not-return", "authorized_user_ids": ["12345"]},
@@ -31,6 +35,7 @@ def test_configuration_is_admin_only_and_secrets_are_write_only(tmp_path):
     assert body["telegram"]["bot_token_configured"] is True
     assert "do-not-return" not in str(body)
     assert client.get("/settings").status_code == 200
+    assert b"Configuration" in client.get("/").data
 
 
 def test_explorer_upload_requires_role_and_supports_chunks(tmp_path):
