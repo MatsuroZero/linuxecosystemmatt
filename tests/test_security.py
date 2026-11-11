@@ -46,3 +46,46 @@ def test_rate_limiter_bounds_client_key_growth():
     assert not limiter.allow("second")
     now[0] = 21.0
     assert limiter.allow("second")
+
+
+
+def test_legacy_dashboard_role_revocation_takes_effect_immediately(tmp_path):
+    import sqlite3
+
+    auth_db = tmp_path / "dashboard-users.sqlite3"
+    with sqlite3.connect(auth_db) as db:
+        db.execute("CREATE TABLE users (username TEXT PRIMARY KEY, role TEXT NOT NULL)")
+        db.execute("INSERT INTO users(username, role) VALUES (?, ?)", ("operator1", "user"))
+
+    app = create_app({
+        "TESTING": True, "SECRET_KEY": "test-secret", "SESSION_COOKIE_SECURE": False,
+        "DASHBOARD_AUTH_DB": str(auth_db), "CONFIG_FILE": str(tmp_path / "settings.json"),
+        "EXPLORER_ROOT": str(tmp_path / "workspace"),
+    })
+    client = app.test_client()
+    with client.session_transaction() as state:
+        state.update(authenticated=True, username="operator1", role="admin")
+
+    # A stale signed cookie claiming admin must be reduced to the current DB role.
+    assert client.get("/settings").status_code == 403
+    assert client.get("/explorer").status_code == 200
+
+    with sqlite3.connect(auth_db) as db:
+        db.execute("DELETE FROM users WHERE username = ?", ("operator1",))
+    assert client.get("/explorer").status_code == 401
+
+
+def test_dashboard_admin_role_is_recomputed_from_reserved_identity(tmp_path):
+    import sqlite3
+
+    auth_db = tmp_path / "dashboard-users.sqlite3"
+    with sqlite3.connect(auth_db) as db:
+        db.execute("CREATE TABLE users (username TEXT PRIMARY KEY, role TEXT NOT NULL)")
+    app = create_app({
+        "TESTING": True, "SECRET_KEY": "test-secret", "SESSION_COOKIE_SECURE": False,
+        "DASHBOARD_AUTH_DB": str(auth_db), "CONFIG_FILE": str(tmp_path / "settings.json"),
+    })
+    client = app.test_client()
+    with client.session_transaction() as state:
+        state.update(authenticated=True, username="marwan", role="viewer")
+    assert client.get("/settings").status_code == 200
