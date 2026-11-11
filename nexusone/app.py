@@ -32,6 +32,7 @@ def create_app(config=None) -> Flask:
         SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=os.environ.get("NEXUSONE_COOKIE_SECURE", "1") != "0",
         TRUSTED_ORIGINS=(), RATE_LIMIT=120, RATE_WINDOW_SECONDS=60,
+        CONTENT_SECURITY_POLICY="default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'",
     )
     app.config.update(supplied)
     limiter = RateLimiter(int(app.config["RATE_LIMIT"]), float(app.config["RATE_WINDOW_SECONDS"]))
@@ -53,10 +54,10 @@ def create_app(config=None) -> Flask:
     def security_headers(response):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "same-origin")
-        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         response.headers.setdefault("Cache-Control", "no-store")
-        response.headers.setdefault("Content-Security-Policy",
-                                    "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'")
+        # Do not emit X-Frame-Options: SAMEORIGIN: Discord Activities are embedded cross-origin.
+        # Configure frame-ancestors narrowly when enabling the Discord integration.
+        response.headers.setdefault("Content-Security-Policy", app.config["CONTENT_SECURITY_POLICY"])
         return response
 
     @app.errorhandler(413)
