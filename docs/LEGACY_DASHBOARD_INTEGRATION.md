@@ -57,7 +57,9 @@ machine-control routes governed only by the old route-level checks.
 - The reserved `marwan` dashboard identity remains the sole administrator.
 - Terminal access, package actions, power/network changes, remote keyboard and
   mouse input, screen viewing/capture, process termination, Serpantinum changes,
-  and local-agent execution are administrator-only.
+  and local-agent execution are administrator-only. The injected navigation
+  hides privileged control tabs from non-admin users; the server-side checks
+  remain authoritative.
 - Explorer and ordinary dashboard reads remain available to authenticated
   users. The existing Explorer workspace boundary is unchanged.
 - Unsafe legacy requests require a same-origin Origin/Referer and a session-bound
