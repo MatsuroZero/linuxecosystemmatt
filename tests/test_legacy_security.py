@@ -156,7 +156,7 @@ def test_legacy_security_bootstrap_javascript_parses_when_node_is_available(tmp_
     client = app.test_client()
     signed_in(client)
     page = client.get("/")
-    match = re.search(rb"<script>([\\s\\S]*?)</script>", page.data)
+    match = re.search(rb"<script>([\s\S]*?)</script>", page.data)
     assert match, "CSRF bootstrap script was not injected"
 
     script = tmp_path / "legacy-security-bootstrap.js"
