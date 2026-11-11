@@ -69,7 +69,13 @@ def install_dashboard_gateway(
     module_source = source[:insertion]
     if "app = Flask(" not in module_source:
         raise ValueError("Dashboard Flask app must be initialized before its main entry point")
-    if "DASHBOARD_AUTH_DB =" not in module_source or "_SHARING_HOME =" not in module_source:
+    has_auth_db = "DASHBOARD_AUTH_DB =" in module_source
+    has_sharing_root = "_SHARING_HOME =" in module_source
+    if not (has_auth_db and has_sharing_root):
+        if "DASHBOARD_AUTH_DB =" in source and "_SHARING_HOME =" in source:
+            raise ValueError(
+                "Dashboard auth DB and sharing-root variables must be defined before its main entry point"
+            )
         raise ValueError("Dashboard source is missing the audited auth DB or sharing-root variables")
 
     backup = Path(backup_path).expanduser() if backup_path else _timestamped_backup(
