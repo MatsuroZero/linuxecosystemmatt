@@ -19,7 +19,7 @@ _SECRET_FIELDS = {
         "system_dashboard_password", "odysseus_password",
         "jellyfin_password", "uptime_kuma_password",
     },
-    "discord": {"bot_token", "client_secret", "bridge_secret"},
+    "discord": {"bot_token", "client_secret", "bridge_secret", "links_pin"},
 }
 _LIST_FIELDS = {
     "telegram": {"authorized_user_ids", "chat_ids"},
@@ -30,9 +30,18 @@ _TEXT_FIELDS = {
         "enabled", "system_dashboard_username", "odysseus_username",
         "jellyfin_username", "uptime_kuma_username", "gemini_base_url",
         "gemini_timeout", "ollama_base_url", "ollama_timeout",
-        "ollama_memory_model", "ollama_memory_path",
+        "ollama_memory_model", "ollama_memory_path", "system_dashboard_url",
+        "odysseus_url", "jellyfin_url", "uptime_kuma_url", "nexus_registry_path",
+        "system_dashboard_health_url", "jellyfin_health_url", "ollama_health_url",
+        "uptime_kuma_health_url",
     },
-    "discord": {"enabled", "application_id", "client_id", "activity_origin"},
+    "discord": {
+        "enabled", "application_id", "client_id", "activity_origin",
+        "redirect_uri", "allowed_origins", "port",
+        "system_dashboard_url", "odysseus_url", "jellyfin_url", "uptime_kuma_url",
+        "nexus_registry_path", "system_dashboard_health_url", "jellyfin_health_url",
+        "ollama_health_url", "uptime_kuma_health_url",
+    },
 }
 
 
@@ -46,6 +55,24 @@ class ConfigStore:
     def __init__(self, path: str | Path):
         self.path = Path(path).expanduser()
         self._lock = RLock()
+
+    @staticmethod
+    def _validate_url(value: str, field: str, origin_only: bool, allow_local_http: bool) -> None:
+        try:
+            parsed = urlsplit(value)
+            hostname = parsed.hostname
+            port = parsed.port
+        except ValueError as exc:
+            raise ConfigurationError(f"{field} is not a valid URL") from exc
+        local_http = parsed.scheme == "http" and hostname in {"localhost", "127.0.0.1", "::1"}
+        if (
+            (parsed.scheme != "https" and not (allow_local_http and local_http))
+            or not hostname or (port is not None and not 1 <= port <= 65535)
+            or parsed.username or parsed.password or parsed.query or parsed.fragment
+            or (origin_only and parsed.path not in {"", "/"})
+        ):
+            requirement = "origin" if origin_only else "URL"
+            raise ConfigurationError(f"{field} must be a valid HTTP(S) {requirement}")
 
     def _read(self) -> dict[str, Any]:
         if not self.path.exists():
@@ -162,21 +189,19 @@ class ConfigStore:
                             ):
                                 raise ConfigurationError(f"{key} must be a valid HTTP(S) base URL")
                         if key == "activity_origin" and normalized:
-                            try:
-                                parsed = urlsplit(normalized)
-                                hostname = parsed.hostname
-                                port = parsed.port
-                            except ValueError as exc:
-                                raise ConfigurationError("activity_origin is not a valid URL") from exc
-                            if (
-                                parsed.scheme != "https" or not hostname
-                                or (port is not None and not 1 <= port <= 65535)
-                                or parsed.username or parsed.password
-                                or parsed.path not in {"", "/"} or parsed.query or parsed.fragment
-                            ):
-                                raise ConfigurationError(
-                                    "activity_origin must be an HTTPS origin without path, query, or credentials"
-                                )
+                            self._validate_url(normalized, key, origin_only=True, allow_local_http=False)
+                        if key == "redirect_uri" and normalized:
+                            self._validate_url(normalized, key, origin_only=False, allow_local_http=True)
+                        if key == "allowed_origins" and normalized:
+                            origins = [item.strip() for item in normalized.split(",") if item.strip()]
+                            if not origins:
+                                raise ConfigurationError("allowed_origins must contain at least one origin")
+                            for origin in origins:
+                                self._validate_url(origin, key, origin_only=True, allow_local_http=True)
+                            normalized = ",".join(origins)
+                        if key == "port" and normalized:
+                            if not normalized.isdigit() or not 1024 <= int(normalized) <= 65535:
+                                raise ConfigurationError("port must be between 1024 and 65535")
                         current[key] = normalized
                     else:
                         raise ConfigurationError(f"{key} must be text up to 500 characters")
