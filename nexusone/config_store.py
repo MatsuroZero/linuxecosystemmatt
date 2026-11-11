@@ -14,7 +14,11 @@ from typing import Any
 from urllib.parse import urlsplit
 
 _SECRET_FIELDS = {
-    "telegram": {"bot_token", "links_pin"},
+    "telegram": {
+        "bot_token", "links_pin", "gemini_api_key",
+        "system_dashboard_password", "odysseus_password",
+        "jellyfin_password", "uptime_kuma_password",
+    },
     "discord": {"bot_token", "client_secret", "bridge_secret"},
 }
 _LIST_FIELDS = {
@@ -22,7 +26,12 @@ _LIST_FIELDS = {
     "discord": {"authorized_user_ids", "guild_ids", "channel_ids"},
 }
 _TEXT_FIELDS = {
-    "telegram": {"enabled"},
+    "telegram": {
+        "enabled", "system_dashboard_username", "odysseus_username",
+        "jellyfin_username", "uptime_kuma_username", "gemini_base_url",
+        "gemini_timeout", "ollama_base_url", "ollama_timeout",
+        "ollama_memory_model", "ollama_memory_path",
+    },
     "discord": {"enabled", "application_id", "client_id", "activity_origin"},
 }
 
@@ -118,6 +127,27 @@ class ConfigStore:
                             not normalized.isdigit() or len(normalized) > 24
                         ):
                             raise ConfigurationError(f"{key} must be a numeric Discord ID")
+                        if key in {"gemini_timeout", "ollama_timeout"} and normalized:
+                            try:
+                                timeout = float(normalized)
+                            except ValueError as exc:
+                                raise ConfigurationError(f"{key} must be a positive number") from exc
+                            if not 1 <= timeout <= 3600:
+                                raise ConfigurationError(f"{key} must be between 1 and 3600 seconds")
+                        if key in {"gemini_base_url", "ollama_base_url"} and normalized:
+                            try:
+                                parsed_base = urlsplit(normalized)
+                                hostname_base = parsed_base.hostname
+                                port_base = parsed_base.port
+                            except ValueError as exc:
+                                raise ConfigurationError(f"{key} is not a valid URL") from exc
+                            if (
+                                parsed_base.scheme not in {"http", "https"} or not hostname_base
+                                or (port_base is not None and not 1 <= port_base <= 65535)
+                                or parsed_base.username or parsed_base.password
+                                or parsed_base.query or parsed_base.fragment
+                            ):
+                                raise ConfigurationError(f"{key} must be a valid HTTP(S) base URL")
                         if key == "activity_origin" and normalized:
                             try:
                                 parsed = urlsplit(normalized)
