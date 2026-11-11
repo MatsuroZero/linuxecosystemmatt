@@ -37,7 +37,7 @@ small{color:#9ca3af}#status{white-space:pre-wrap}
 <label><input type="checkbox" id="tg_enabled"> Enabled</label>
 <label>Bot token <input type="password" id="tg_token" autocomplete="new-password" placeholder="Leave blank to keep the saved token"></label>
 <small id="tg_token_state"></small><label><input type="checkbox" id="tg_clear_token"> Clear saved token</label>
-<label>Authorized Telegram user IDs, one per line</label><textarea id="tg_users" rows="3"></textarea>
+<label>Authorized Telegram user IDs, one per line</label><textarea id="tg_users" rows="3"></textarea><small>The current legacy bot activates the first ID only; multi-user bot authorization is part of the integration migration.</small>
 <label>Chat/group IDs, one per line</label><textarea id="tg_chats" rows="2"></textarea>
 <label>Credential reveal PIN <input type="password" id="tg_pin" autocomplete="new-password" placeholder="7171, if retaining the legacy reveal flow"></label><label><input type="checkbox" id="tg_clear_pin"> Clear saved PIN</label>
 </section>
