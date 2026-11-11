@@ -210,9 +210,10 @@ class ConfigStore:
                             for origin in origins:
                                 self._validate_url(origin, key, origin_only=True, allow_local_http=True)
                             normalized = ",".join(origins)
-                        if key == "port" and normalized:
-                            if not normalized.isdigit() or not 1024 <= int(normalized) <= 65535:
-                                raise ConfigurationError("port must be between 1024 and 65535")
+                        if key == "port" and normalized and (
+                            not normalized.isdigit() or not 1024 <= int(normalized) <= 65535
+                        ):
+                            raise ConfigurationError("port must be between 1024 and 65535")
                         current[key] = normalized
                     else:
                         raise ConfigurationError(f"{key} must be text up to 500 characters")
