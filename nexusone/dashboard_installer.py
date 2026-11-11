@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 _INTEGRATION_BLOCK = '''# NexusOne integration: keep this block after all dashboard routes.
+import os as _nexusone_os
 from nexusone.legacy_gateway import install_nexusone_gateway
 
 install_nexusone_gateway(
@@ -18,6 +19,10 @@ install_nexusone_gateway(
         "DASHBOARD_AUTH_DB": str(DASHBOARD_AUTH_DB),
         "EXPLORER_ROOT": str(_SHARING_HOME),
     },
+    allow_lan=(
+        _nexusone_os.environ.get("NEXUSONE_ALLOW_LAN", "").strip().lower()
+        in {"1", "true", "yes"}
+    ),
 )
 '''
 
