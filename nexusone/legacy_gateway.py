@@ -97,7 +97,14 @@ class NexusOneGateway:
 
         remote = environ.get("REMOTE_ADDR")
         scheme = str(environ.get("wsgi.url_scheme", "http"))
-        if not _is_loopback(str(remote or "")):
+        # A local reverse proxy can make remote clients appear to originate
+        # from loopback. Treat forwarded requests conservatively as remote;
+        # never trust forwarded headers to grant access.
+        has_forwarded_identity = bool(
+            environ.get("HTTP_FORWARDED") or environ.get("HTTP_X_FORWARDED_FOR")
+        )
+        is_local_request = _is_loopback(str(remote or "")) and not has_forwarded_identity
+        if not is_local_request:
             if not self.allow_lan:
                 body = b"NexusOne is available on this machine only."
                 start_response("403 Forbidden", [
