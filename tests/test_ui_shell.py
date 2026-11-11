@@ -21,6 +21,13 @@ def test_ui_shell_wraps_authenticated_pages_and_serves_theme_assets(tmp_path):
     assert b"/theme/shell.js" in page.data
     assert b"Integrations" in page.data
 
+    services = client.get("/services")
+    assert services.status_code == 200
+    nonce_header = services.headers["Content-Security-Policy"]
+    assert "script-src 'self' 'nonce-" in nonce_header
+    assert b'<script nonce="' in services.data
+    assert b'<style nonce="' in services.data
+
     stylesheet = client.get("/theme/shell.css")
     assert stylesheet.status_code == 200
     assert b"--md-sys-color-primary" in stylesheet.data
