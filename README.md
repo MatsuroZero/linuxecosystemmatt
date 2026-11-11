@@ -50,7 +50,7 @@ The source audit found an existing Flask dashboard, a useful Nexus CLI foundatio
 
 The uploaded Discord archive contains a populated `.env` and bundled `node_modules`. Neither is suitable for publication. Treat credentials in that archive as exposed and rotate them before deployment. The original archive is retained as audit input; it is not copied into this repository.
 
-Additional owner-confirmed requirements are recorded in [docs/USER_REQUIREMENTS_ADDENDUM.md](docs/USER_REQUIREMENTS_ADDENDUM.md). The first Explorer upload and integration-settings implementation notes are in [docs/EXPLORER_AND_CONFIG.md](docs/EXPLORER_AND_CONFIG.md). The current foundation exposes an admin-only `/settings` page and an authenticated `/explorer/uploads` page, plus resumable chunk APIs. Upload sessions persist across server restarts and are scoped to the signed-in dashboard username.
+Additional owner-confirmed requirements are recorded in [docs/USER_REQUIREMENTS_ADDENDUM.md](docs/USER_REQUIREMENTS_ADDENDUM.md). The first Explorer upload and integration-settings implementation notes are in [docs/EXPLORER_AND_CONFIG.md](docs/EXPLORER_AND_CONFIG.md). The current foundation exposes an admin-only `/settings` page and an authenticated `/explorer` file manager with resumable chunk uploads. Upload sessions persist across server restarts and are scoped to the signed-in dashboard username.
 
 ## Development
 
