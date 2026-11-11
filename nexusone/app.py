@@ -66,11 +66,14 @@ small{color:#9ca3af}#status{white-space:pre-wrap}
 <label>Discord application ID <input id="dc_app"></label>
 <label>OAuth client ID <input id="dc_client"></label>
 <label>Guild/server IDs, one per line</label><textarea id="dc_guilds" rows="2"></textarea>
+<small>Stored for future Activity context restrictions; the current server does not enforce these IDs yet.</small>
 <label>Channel IDs, one per line</label><textarea id="dc_channels" rows="2"></textarea>
+<small>Stored for future Activity context restrictions; the current server does not enforce these IDs yet.</small>
 <label>Client secret <input type="password" id="dc_secret" autocomplete="new-password" placeholder="Leave blank to keep current"></label>
 <small id="dc_secret_state"></small><label><input type="checkbox" id="dc_clear_secret"> Clear saved client secret</label>
 <label>OAuth redirect URI <input id="dc_redirect" placeholder="https://your-activity.example/…"></label>
 <label>Authorized Discord user IDs, one per line</label><textarea id="dc_users" rows="3"></textarea>
+<small>Multiple IDs are supported by the pending Discord adapter update (PR #7); until that version is deployed, only the first ID is active.</small>
 <label>Activity origin <input id="dc_origin" placeholder="https://your-activity.example"></label>
 <label>Additional allowed origins, one per line</label><textarea id="dc_origins" rows="3"></textarea>
 <label>Control bridge secret <input type="password" id="dc_bridge" autocomplete="new-password" placeholder="Leave blank to keep current"></label>
