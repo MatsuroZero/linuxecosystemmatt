@@ -18,7 +18,7 @@ Unknown roles fail closed. The server resolves roles from authenticated identity
 - Session-bound CSRF token required for POST, PUT, PATCH, and DELETE.
 - Mutating requests with an Origin header must match the request origin or a configured trusted origin.
 - Per-client sliding-window rate limit for the single-process deployment.
-- HttpOnly, SameSite=Lax cookies; Secure enabled by default.
+- HttpOnly, SameSite=Lax cookies; Secure enabled by default. Discord's embedded Activity deployment must explicitly use SameSite=None; Secure and a narrowly configured CSP frame-ancestors allowlist for Discord origins.
 - Production requires a stable secret key from private configuration.
 - Baseline response security headers.
 
@@ -26,7 +26,7 @@ The in-process limiter and session storage are only suitable for the initial sin
 
 ## LAN exposure
 
-Loopback is the default. `NEXUSONE_ALLOW_LAN=1` opts into a non-loopback bind. Do not expose the service directly to the internet. LAN use requires HTTPS termination, firewall restrictions, strong authentication, and review of enabled integrations.
+Loopback is the default. `NEXUSONE_ALLOW_LAN=1` opts into a non-loopback bind. Do not expose the service directly to the internet. LAN use requires HTTPS termination, firewall restrictions, strong authentication, and review of enabled integrations. Discord embedding must be enabled through a narrow CSP frame-ancestors configuration; do not add a conflicting X-Frame-Options SAMEORIGIN header.
 
 ## Explorer
 
