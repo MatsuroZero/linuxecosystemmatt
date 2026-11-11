@@ -21,7 +21,7 @@ def make_gateway(tmp_path, *, allow_lan=False):
         return jsonify(source="legacy")
 
     root = tmp_path / "workspace"
-    root.mkdir()
+    root.mkdir(exist_ok=True)
     (root / "hello.txt").write_text("hello", encoding="utf-8")
     auth_db = tmp_path / "dashboard-users.sqlite3"
     nexusone = create_app({
