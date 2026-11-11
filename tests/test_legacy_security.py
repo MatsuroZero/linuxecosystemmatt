@@ -70,6 +70,9 @@ def test_legacy_html_bootstraps_csrf_header_for_fetch(tmp_path):
     assert b'nexusone-admin" content="false"' in page.data
     assert b"nexusone-explorer-link" in page.data
     assert b"nexusone-settings-link" in page.data
+    assert b'nav.className="tabs"' in page.data
+    assert b'addFrame("nexusone-explorer","/nexusone/explorer"' in page.data
+    assert b'if(admin)addFrame("nexusone-settings","/nexusone/settings"' in page.data
     assert csrf_token(page)
 
 
