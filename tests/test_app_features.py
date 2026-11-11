@@ -65,5 +65,6 @@ def test_regular_requests_remain_bounded_but_upload_chunks_have_separate_limit(t
         "MAX_REQUEST_BYTES": 32, "EXPLORER_ROOT": str(tmp_path), "UPLOAD_CHUNK_BYTES": 128,
     })
     client, headers = admin_client(app)
+    app.add_url_rule("/api/test", "test_body_limit", lambda: {"ok": True}, methods=["POST"])
     too_big = client.post("/api/test", headers=headers, data="x" * 33)
-    assert too_big.status_code == 404 or too_big.status_code == 413
+    assert too_big.status_code == 413
