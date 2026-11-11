@@ -100,6 +100,99 @@ nav{display:flex;gap:.6rem;flex-wrap:wrap}a{color:#c4b5fd;text-decoration:none}n
 </html>"""
 
 
+_EXPLORER_PAGE = """<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NexusOne · Explorer</title>
+<style>
+:root{color-scheme:dark}body{font:15px system-ui;max-width:1100px;margin:2rem auto;padding:0 1rem;background:#111827;color:#e5e7eb}
+header{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}.muted{color:#9ca3af}
+main{background:#1f2937;border:1px solid #374151;border-radius:12px;padding:1rem;margin-top:1rem}
+.toolbar{display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0}button{padding:.6rem .85rem;border:0;border-radius:7px;background:#374151;color:white;cursor:pointer}button.primary{background:#7c3aed}button.danger{background:#b91c1c}button:disabled{opacity:.45;cursor:not-allowed}
+input[type=text]{padding:.65rem;background:#111827;color:white;border:1px solid #4b5563;border-radius:6px;width:min(360px,100%)}
+.crumbs{display:flex;gap:.4rem;flex-wrap:wrap;margin:.8rem 0}.crumbs button{background:#273449}
+table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:.65rem;border-bottom:1px solid #374151}td.actions{white-space:nowrap}progress{width:100%;height:1rem}.status{white-space:pre-wrap;margin:.6rem 0;color:#c4b5fd}.upload{border-top:1px solid #374151;padding:.6rem 0}
+@media(max-width:650px){td.size,th.size{display:none}td,th{padding:.45rem;font-size:.9rem}button{padding:.55rem}}
+</style>
+<header><div><h1>📁 Explorer</h1><p class="muted">Your workspace, with large resumable uploads.</p></div><a href="/">← NexusOne</a></header>
+<main>
+<div class="muted" id="current-path">Loading workspace…</div>
+<div class="crumbs" id="breadcrumbs"></div>
+<div class="toolbar">
+<button id="up">⬆ Up</button><button id="refresh">↻ Refresh</button><button id="new-folder">＋ Folder</button>
+<button class="primary" id="upload">⬆ Upload files</button><input id="file-input" type="file" multiple hidden>
+<button id="copy">Copy</button><button id="cut">Cut</button><button id="paste">Paste</button><button class="danger" id="delete">Delete</button>
+</div>
+<div class="status" id="status" role="status"></div>
+<div id="upload-progress"></div>
+<table><thead><tr><th></th><th>Name</th><th class="size">Size</th><th>Actions</th></tr></thead><tbody id="entries"><tr><td colspan="4">Loading…</td></tr></tbody></table>
+</main>
+<script>
+let currentPath=".",parentPath=null,entries=[],clipboard=null,csrf="";
+const byId=id=>document.getElementById(id),selected=new Set();
+async function api(url,options={}){
+ const response=await fetch(url,{...options,headers:{...(options.headers||{}),"X-CSRF-Token":csrf}});
+ let data={};try{data=await response.json();}catch{}
+ if(!response.ok){const error=new Error(data.error||("HTTP "+response.status));error.data=data;throw error;}
+ return data;
+}
+async function init(){const response=await fetch("/api/security/csrf");if(!response.ok)throw Error("Authentication required");csrf=(await response.json()).token;await loadFiles(".");}
+function setStatus(message){byId("status").textContent=message||"";}
+function formatSize(size){if(size==null)return "Folder";let n=size,units=["B","KB","MB","GB","TB"],i=0;while(n>=1024&&i<units.length-1){n/=1024;i++;}return (i?n.toFixed(1):n)+" "+units[i];}
+function render(){
+ byId("current-path").textContent="/"+(currentPath==="."?"":currentPath);
+ const crumbs=byId("breadcrumbs");crumbs.replaceChildren();let parts=currentPath==="."?[]:currentPath.split("/"),acc="";
+ const home=document.createElement("button");home.textContent="Home";home.onclick=()=>loadFiles(".");crumbs.append(home);
+ for(const part of parts){acc=acc?acc+"/"+part:part;const value=acc,b=document.createElement("button");b.textContent=part;b.onclick=()=>loadFiles(value);crumbs.append(b);}
+ const body=byId("entries");body.replaceChildren();
+ if(!entries.length){const row=document.createElement("tr"),cell=document.createElement("td");cell.colSpan=4;cell.textContent="This folder is empty.";row.append(cell);body.append(row);}
+ for(const item of entries){
+  const row=document.createElement("tr"),selectCell=document.createElement("td"),check=document.createElement("input");
+  check.type="checkbox";check.checked=selected.has(item.path);check.onchange=()=>{check.checked?selected.add(item.path):selected.delete(item.path);};selectCell.append(check);
+  const nameCell=document.createElement("td"),name=document.createElement("button");name.textContent=(item.type==="directory"?"📁 ":"📄 ")+item.name;name.onclick=()=>item.type==="directory"?loadFiles(item.path):download(item.path);nameCell.append(name);
+  const size=document.createElement("td");size.className="size";size.textContent=formatSize(item.size);
+  const actions=document.createElement("td");actions.className="actions";
+  if(item.type==="file"){const dl=document.createElement("button");dl.textContent="Download";dl.onclick=()=>download(item.path);actions.append(dl);}
+  const rename=document.createElement("button");rename.textContent="Rename";rename.onclick=()=>renameItem(item);actions.append(rename);
+  row.append(selectCell,nameCell,size,actions);body.append(row);
+ }
+ byId("up").disabled=parentPath===null;
+ byId("paste").disabled=!clipboard;
+}
+async function loadFiles(path=currentPath){
+ try{const data=await api("/api/files?path="+encodeURIComponent(path));currentPath=data.path;parentPath=data.parent;entries=data.entries||[];clipboard=data.clipboard||null;selected.clear();render();setStatus("");}
+ catch(error){setStatus("Explorer error: "+error.message);}
+}
+function download(path){window.location.href="/api/files/download?path="+encodeURIComponent(path);}
+function selectedPaths(){return [...selected];}
+async function renameItem(item){const name=prompt("Rename:",item.name);if(name===null||!name.trim())return;try{await api("/api/files/rename",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:item.path,name:name.trim()})});await loadFiles();}catch(e){setStatus("Rename failed: "+e.message);}}
+byId("up").onclick=()=>{if(parentPath!==null)loadFiles(parentPath);};
+byId("refresh").onclick=()=>loadFiles();
+byId("new-folder").onclick=async()=>{const name=prompt("New folder name:");if(!name||!name.trim())return;try{await api("/api/files/folder",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:currentPath,name:name.trim()})});await loadFiles();}catch(e){setStatus("Folder creation failed: "+e.message);}};
+byId("copy").onclick=()=>setClipboard("copy");byId("cut").onclick=()=>setClipboard("cut");
+async function setClipboard(mode){const paths=selectedPaths();if(!paths.length){setStatus("Select one or more items first.");return;}try{const data=await api("/api/files/clipboard",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({paths,mode})});clipboard=data.clipboard;render();setStatus(mode+" clipboard: "+paths.length+" item(s)");}catch(e){setStatus(e.message);}}
+byId("paste").onclick=async()=>{
+ try{let data;try{data=await api("/api/files/paste",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:currentPath})});}
+ catch(error){if(!error.data?.conflict)throw error;const choice=prompt("Some items already exist. Type R to replace or N to rename incoming files. Cancel leaves the clipboard unchanged.","N");if(choice===null)return;const conflict=choice.trim().toLowerCase();if(!["r","replace","n","rename"].includes(conflict)){setStatus("Choose R or N.");return;}data=await api("/api/files/paste",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:currentPath,conflict:["r","replace"].includes(conflict)?"replace":"rename"})});}
+ clipboard=data.clipboard||null;await loadFiles();setStatus("Pasted "+(data.count||0)+" item(s).");
+ }catch(e){setStatus("Paste failed: "+e.message);}
+};
+byId("delete").onclick=async()=>{const paths=selectedPaths();if(!paths.length){setStatus("Select items to delete.");return;}if(!confirm("Delete "+paths.length+" selected item(s)? Folder contents are deleted too."))return;try{const data=await api("/api/files/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({paths})});clipboard=data.clipboard||null;await loadFiles();setStatus("Deleted "+paths.length+" item(s).");}catch(e){setStatus("Delete failed: "+e.message);}};
+byId("upload").onclick=()=>byId("file-input").click();
+byId("file-input").onchange=async event=>{const files=[...event.target.files];event.target.value="";for(const file of files){try{await uploadFile(file);}catch(e){setStatus("Upload paused: "+e.message+" Select the same file again to resume.");break;}}await loadFiles();};
+function uploadKey(file){return "nexusone-upload:"+encodeURIComponent(currentPath)+":"+encodeURIComponent(file.name)+":"+file.size;}
+async function uploadFile(file){
+ const key=uploadKey(file);let saved=null,uploadId=null,offset=0,chunkLimit=8*1024*1024;
+ try{saved=JSON.parse(localStorage.getItem(key)||"null");}catch{}
+ if(saved){const check=await fetch("/api/explorer/uploads/"+saved.upload_id);if(check.ok){const state=await check.json();if(state.filename===file.name&&state.size===file.size){uploadId=saved.upload_id;offset=state.offset;chunkLimit=state.chunk_limit;}}if(!uploadId)localStorage.removeItem(key);}
+ if(!uploadId){const started=await api("/api/explorer/uploads",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filename:file.name,destination:currentPath,size:file.size})});uploadId=started.upload_id;offset=started.offset;chunkLimit=started.chunk_limit;localStorage.setItem(key,JSON.stringify({upload_id:uploadId}));}
+ const wrap=document.createElement("div");wrap.className="upload";const label=document.createElement("div");label.textContent=file.name;const bar=document.createElement("progress");bar.max=100;bar.value=file.size?offset/file.size*100:100;const meta=document.createElement("small");meta.textContent=offset+" / "+file.size+" bytes";wrap.append(label,bar,meta);byId("upload-progress").append(wrap);
+ while(offset<file.size){const blob=file.slice(offset,Math.min(offset+chunkLimit,file.size));const response=await api("/api/explorer/uploads/"+uploadId+"?offset="+offset,{method:"PUT",body:blob,headers:{"Content-Type":"application/octet-stream"}});offset=response.offset;bar.value=file.size?offset/file.size*100:100;meta.textContent=offset.toLocaleString()+" / "+file.size.toLocaleString()+" bytes";}
+ await api("/api/explorer/uploads/"+uploadId+"/finish",{method:"POST"});localStorage.removeItem(key);bar.value=100;meta.textContent="Complete";
+}
+init().catch(error=>setStatus(error.message));
+</script></html>"""
+
+
 _EXPLORER_UPLOAD_PAGE = """<!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NexusOne Explorer · Upload</title>
@@ -293,6 +386,11 @@ def create_app(config=None) -> Flask:
             is_admin=has_capability(role, Capability.SETTINGS_MANAGE),
             explorer_root=app.config["EXPLORER_ROOT"],
         )
+
+    @app.get("/explorer")
+    def explorer_page():
+        _role_required(Capability.EXPLORER_READ)()
+        return render_template_string(_EXPLORER_PAGE)
 
     @app.get("/explorer/uploads")
     def explorer_upload_page():
