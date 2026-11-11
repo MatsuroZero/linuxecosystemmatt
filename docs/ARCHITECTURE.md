@@ -29,6 +29,7 @@ NexusOne Web/API
 - **Security:** identity/session validation, role-to-capability policy, CSRF, origin validation, request limits, rate limiting, audit.
 - **Core:** typed service registry, action orchestration, health checks, event publication, settings.
 - **Adapters:** systemd, Docker, Ollama, desktop controls, and Explorer.
+- **Service controls (first slice):** fixed systemd unit allowlist; all services expose status, while only approved user-scope units can be started/stopped/restarted from the web UI. System-scope units remain status-only until a narrowly scoped polkit helper is designed and installed.
 - **Explorer:** preserve access to the user's own workspace. Canonicalize paths and reject traversal and symlink escapes.
 - **Integrations:** keep Telegram and Discord independently restartable so one integration cannot crash the dashboard.
 
@@ -37,7 +38,7 @@ SQLite is the initial store for settings, jobs, and audit events. Server-Sent Ev
 ## Migration
 
 1. Establish security primitives and tests.
-2. Wrap existing dashboard routes with explicit capabilities.
+2. Wrap existing dashboard routes with explicit capabilities. The current compatibility middleware re-reads the legacy dashboard account database on each request when it exists, so deleted accounts and role changes take effect immediately.
 3. Extract service definitions and health checks into adapters.
 4. Make Telegram and Discord consume the shared API.
 5. Archive snapshots with provenance and checksums.
