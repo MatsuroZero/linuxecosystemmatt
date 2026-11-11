@@ -1,9 +1,9 @@
 """Bounded in-process sliding-window rate limiter for single-process deployments."""
 
 from collections import deque
+from collections.abc import Callable
 from threading import Lock
 from time import monotonic
-from collections.abc import Callable
 
 
 class RateLimiter:
