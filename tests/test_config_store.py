@@ -54,6 +54,8 @@ def test_discord_ids_and_activity_origin_are_validated(tmp_path):
         store.update({"discord": {"activity_origin": "http://example.com"}})
     with pytest.raises(ConfigurationError):
         store.update({"discord": {"activity_origin": "https://example.com/path"}})
+    with pytest.raises(ConfigurationError):
+        store.update({"discord": {"activity_origin": "https://[invalid"}})
     saved = store.update({"discord": {
         "application_id": "123456789012345678",
         "client_id": "123456789012345678",
